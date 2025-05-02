@@ -104,7 +104,7 @@ This project is licensed under the MIT License.
 ## 📬 Contact
 
 - Developer: Dinuka
-- Email: your-infodinukalk@gmail.com
+- Email: infodinukalk@gmail.com
 - Project: [OceanPulse Backend](https://github.com/yourusername/oceanpulse-backend)
 
 ---
