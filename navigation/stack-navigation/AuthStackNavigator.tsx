@@ -1,4 +1,5 @@
 import { createStackNavigator } from '@react-navigation/stack';
+import { AuthStackParamList } from './AuthStackParamList';
 import SignupScreen from '@/components/ui/screen/security/SignupScreen';
 import LoginScreen from '@/components/ui/screen/security/LoginScreen';
 import PasswordResetScreen from '@/components/ui/screen/security/PasswordResetScreen';
@@ -7,7 +8,7 @@ import WelcomePageScreen from '@/components/ui/screen/home/WelcomePageScreen';
 import ForgotPasswordScreen from '@/components/ui/screen/security/ForgotPasswordScreen';
 import VerifyOtpScreen from '@/components/ui/screen/security/VerifyOtpScreen';
 
-const Stack = createStackNavigator();
+const Stack = createStackNavigator<AuthStackParamList>();
 export default function StackNavigator() {
     return (
         <Stack.Navigator initialRouteName="Welcome">

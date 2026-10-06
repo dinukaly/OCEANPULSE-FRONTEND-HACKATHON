@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { View, StyleSheet, Text, TouchableOpacity } from 'react-native';
 import { Provider, useDispatch, useSelector } from 'react-redux';
+import { NavigationContainer } from '@react-navigation/native';
 import SplashScreen from '@/components/ui/screen/SplashScreen';
-import AuthStackNavigator from './navigation/stack-navigation/AuthStackNavigator';
-import AppStackNavigator from './navigation/stack-navigation/AppStackNavigator';
+import AuthStackNavigator from '@/navigation/stack-navigation/AuthStackNavigator';
+import AppStackNavigator from '@/navigation/stack-navigation/AppStackNavigator';
 import store, { RootState } from '@/store';
 import { setUserId, logout } from '@/store/authSlice';
 import { clearSession, getToken } from '@/utils/session';
@@ -60,9 +61,9 @@ function App() {
   }
 
   return (
-    <View style={styles.container}>
+    <NavigationContainer key={isAuthenticated ? 'signed-in' : 'public'}>
       {isAuthenticated ? <AppStackNavigator /> : <AuthStackNavigator />}
-    </View>
+    </NavigationContainer>
   );
 }
 

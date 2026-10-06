@@ -52,7 +52,7 @@ export default function HomePageScreen({ navigation }: any) {
                 <View style={styles.gridContainer}>
                     <View style={styles.gridRow}>
                         <TouchableOpacity
-                            onPress={() => navigation.navigate('WeatherScreen')}
+                            onPress={() => navigation.navigate('Weather')}
                             style={[styles.btn, styles.weatherBtn]}>
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="umbrella" color={COLORS.background} />
@@ -74,7 +74,7 @@ export default function HomePageScreen({ navigation }: any) {
 
                     <View style={styles.gridRow}>
                         <TouchableOpacity
-                            onPress={() => navigation.navigate('RouteScreen')}
+                            onPress={() => navigation.navigate('Route')}
                             style={[styles.btn, styles.routeBtn]}
                         >
                             <View style={styles.btnContent}>
