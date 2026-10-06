@@ -1,10 +1,9 @@
 import { COLORS } from "@/constants/ColorPallet";
 import React, { useState, useEffect } from "react";
 import {
-    Text, View, StyleSheet, TouchableOpacity, ScrollView, Modal, AppState, Linking, Platform, BackHandler,
+    Text, View, StyleSheet, TouchableOpacity, ScrollView,
     Alert
 } from "react-native";
-import * as Location from 'expo-location';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon } from "react-native-paper";
 import { useDispatch } from "react-redux";
@@ -14,8 +13,6 @@ import { clearSession } from '@/utils/session';
 
 export default function HomePageScreen({ navigation }: any) {
     const [username, setUsername] = useState('');
-    const [locationModalVisible, setLocationModalVisible] = useState(false);
-    const [appState, setAppState] = useState(AppState.currentState);
 
     useEffect(() => {
         const loadUsername = async () => {
@@ -24,61 +21,6 @@ export default function HomePageScreen({ navigation }: any) {
         };
         loadUsername();
     }, []);
-
-    useEffect(() => {
-        checkLocationEnabled();
-
-        const subscription = AppState.addEventListener('change', handleAppStateChange);
-        return () => {
-            subscription.remove();
-        };
-    }, []);
-
-    const handleAppStateChange = (nextAppState: any) => {
-        if (appState.match(/inactive|background/) && nextAppState === 'active') {
-            checkLocationEnabled();
-        }
-        setAppState(nextAppState);
-    };
-
-    const checkLocationEnabled = async () => {
-        const { status } = await Location.getForegroundPermissionsAsync();
-
-        if (status === Location.PermissionStatus.GRANTED) {
-            let location = await Location.getCurrentPositionAsync({});
-            if (location) {
-                console.log('Location is enabled:', location);
-                setLocationModalVisible(false);
-            } else {
-                console.log('GPS is OFF');
-                setLocationModalVisible(true);
-            }
-        } else {
-            const { status: newStatus } = await Location.requestForegroundPermissionsAsync();
-
-            if (newStatus === Location.PermissionStatus.GRANTED) {
-                let location = await Location.getCurrentPositionAsync({});
-                if (location) {
-                    console.log('Location is enabled:', location);
-                    setLocationModalVisible(false);
-                } else {
-                    console.log('GPS is OFF after permission');
-                    setLocationModalVisible(true);
-                }
-            } else {
-                console.log('Permission denied. Show modal.');
-                setLocationModalVisible(true);
-            }
-        }
-    };
-
-    const handleOpenSettings = () => {
-        Linking.openSettings();
-    };
-
-    const handleExitApp = () => {
-        BackHandler.exitApp();
-    };
 
     const dispatch = useDispatch();
     const handleLogout = async () => {
@@ -124,7 +66,8 @@ export default function HomePageScreen({ navigation }: any) {
                         >
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="satellite-uplink" color={COLORS.background} />
-                                <Text style={styles.btnText}>Emergency SOS</Text>
+                                <Text style={styles.btnText}>SOS Request</Text>
+                                <Text style={styles.sosNote}>No rescue dispatch</Text>
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -168,73 +111,6 @@ export default function HomePageScreen({ navigation }: any) {
                     </View>
                 </View>
             </ScrollView>
-            <View style={styles.footer}>
-                <Text style={styles.footerTitle}>Fishermen Resources</Text>
-
-                <View style={styles.resourceGrid}>
-                    <TouchableOpacity
-                        style={styles.resourceItem}
-                        onPress={() => Linking.openURL('https://www.fisheries.noaa.gov')}
-                    >
-                        <Icon source="web" size={24} color={COLORS.lighBlue} />
-                        <Text style={styles.resourceText}>NOAA Fisheries</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.resourceItem}
-                        onPress={() => Linking.openURL('tel:911')}
-                    >
-                        <Icon source="phone" size={24} color={COLORS.lighBlue} />
-                        <Text style={styles.resourceText}>Emergency: 911</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.resourceItem}
-                        onPress={() => Linking.openURL('https://www.weather.gov/marine')}
-                    >
-                        <Icon source="weather-cloudy" size={24} color={COLORS.lighBlue} />
-                        <Text style={styles.resourceText}>Marine Weather</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity
-                        style={styles.resourceItem}
-                        onPress={() => Linking.openURL('tel:8669094911')}
-                    >
-                        <Icon source="lifebuoy" size={24} color={COLORS.lighBlue} />
-                        <Text style={styles.resourceText}>Coast Guard</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
-
-            {/* Location Modal */}
-            <Modal
-                animationType="fade"
-                transparent={true}
-                visible={locationModalVisible}
-                onRequestClose={() => { }}
-            >
-                <View style={styles.modalOverlay}>
-                    <View style={styles.modalContainer}>
-                        <View style={styles.modalHeader}>
-                            <Icon source="map-marker-alert" size={32} color={COLORS.primary} />
-                            <Text style={styles.modalTitle}>Location Required</Text>
-                        </View>
-                        <Text style={styles.modalText}>
-                            Please enable location services to continue using Ocean Pulse.
-                        </Text>
-
-                        <View style={styles.modalButtons}>
-                            <TouchableOpacity style={styles.modalButton} onPress={handleOpenSettings}>
-                                <Text style={styles.modalButtonText}>Open Settings</Text>
-                            </TouchableOpacity>
-
-                            <TouchableOpacity onPress={handleExitApp} style={styles.exitButton}>
-                                <Text style={styles.exitButtonText}>Exit App</Text>
-                            </TouchableOpacity>
-                        </View>
-                    </View>
-                </View>
-            </Modal>
         </View>
     );
 }
@@ -309,6 +185,12 @@ const styles = StyleSheet.create({
         marginTop: 8,
         textAlign: 'center',
     },
+    sosNote: {
+        color: COLORS.background,
+        fontSize: 12,
+        marginTop: 4,
+        textAlign: 'center',
+    },
     weatherBtn: {
         backgroundColor: '#0456C7',
     },
@@ -326,94 +208,5 @@ const styles = StyleSheet.create({
     },
     communityBtn: {
         backgroundColor: '#FF8811',
-    },
-    modalOverlay: {
-        flex: 1,
-        backgroundColor: 'rgba(0,0,0,0.5)',
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    modalContainer: {
-        width: '80%',
-        backgroundColor: 'white',
-        borderRadius: 16,
-        padding: 24,
-        alignItems: 'center',
-    },
-    modalHeader: {
-        flexDirection: 'row',
-        alignItems: 'center',
-        marginBottom: 16,
-    },
-    modalTitle: {
-        fontSize: 20,
-        fontWeight: 'bold',
-        marginLeft: 8,
-        color: COLORS.primary,
-    },
-    modalText: {
-        fontSize: 16,
-        textAlign: 'center',
-        marginBottom: 24,
-        color: COLORS.gray,
-        lineHeight: 22,
-    },
-    modalButtons: {
-        width: '100%',
-    },
-    modalButton: {
-        backgroundColor: COLORS.primary,
-        paddingVertical: 12,
-        borderRadius: 8,
-        alignItems: 'center',
-    },
-    modalButtonText: {
-        color: 'white',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    exitButton: {
-        marginTop: 12,
-        padding: 12,
-        alignItems: 'center',
-    },
-    exitButtonText: {
-        color: 'red',
-        fontSize: 16,
-        fontWeight: '600',
-    },
-    footer: {
-        backgroundColor: COLORS.background,
-        borderTopWidth: 1,
-        borderTopColor: '#e0e0e0',
-        paddingVertical: 40,
-        paddingHorizontal: 20,
-    },
-    footerTitle: {
-        fontSize: 20,
-        fontWeight: '600',
-        color: COLORS.lighBlue,
-        marginBottom: 12,
-        textAlign: 'center',
-    },
-    resourceGrid: {
-        flexDirection: 'row',
-        flexWrap: 'wrap',
-        justifyContent: 'space-between',
-    },
-    resourceItem: {
-        width: '48%',
-        flexDirection: 'row',
-        alignItems: 'center',
-        paddingVertical: 10,
-        paddingHorizontal: 8,
-        marginBottom: 8,
-        backgroundColor: 'rgba(255,255,255,0.9)',
-        borderRadius: 8,
-    },
-    resourceText: {
-        marginLeft: 8,
-        fontSize: 16,
-        color: COLORS.lighBlue,
     },
 });

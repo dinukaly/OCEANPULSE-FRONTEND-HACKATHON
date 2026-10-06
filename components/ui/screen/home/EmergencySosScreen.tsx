@@ -1,164 +1,206 @@
-import React, { useEffect, useState } from "react";
-import { View, Text, StyleSheet, ActivityIndicator, TouchableOpacity, Alert } from "react-native";
+import React, { useState } from "react";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
 import * as Location from "expo-location";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS } from "@/constants/ColorPallet";
-import api from '@/utils/api';
+import api from "@/utils/api";
+
+type Phase = "ready" | "locating" | "submitting" | "recorded" | "error";
+type SosReceipt = {
+  id: string;
+  receivedAt: string | null;
+  status: "recorded";
+  responderNotified: false;
+  alreadyActive: boolean;
+};
 
 export default function EmergencySosScreen({ navigation }: any) {
-  const [sending, setSending] = useState(true);
-  const [cancelEnabled, setCancelEnabled] = useState(true);
+  const [phase, setPhase] = useState<Phase>("ready");
+  const [receipt, setReceipt] = useState<SosReceipt | null>(null);
+  const [errorMessage, setErrorMessage] = useState("");
+  const [locationDenied, setLocationDenied] = useState(false);
 
-  useEffect(() => {
-    const sendSos = async () => {
-      try {
-        const storedUserId = await AsyncStorage.getItem('userId');
-        const storedUserName = await AsyncStorage.getItem('username');
-        console.log("Retrieved storedUserId:", storedUserId,storedUserName);
+  const sendSos = async () => {
+    let requestStarted = false;
+    setErrorMessage("");
+    setLocationDenied(false);
+    setPhase("locating");
 
-        if (!storedUserId || !storedUserName) {
-          Alert.alert("Error", "User ID not found. Please login again.");
-          navigation.goBack();
-          return;
-        }
-
-        const { status } = await Location.requestForegroundPermissionsAsync();
-        if (status !== 'granted') {
-          Alert.alert("Permission Denied", "Location permission is required to send SOS.");
-          navigation.goBack();
-          return;
-        }
-
-        const location = await Location.getCurrentPositionAsync({});
-        const { latitude, longitude } = location.coords;
-
-        const payload = {
-          latitude,
-          longitude,
-          userId: storedUserId,
-          username: storedUserName
-        };
-
-        const response = await api.post('sosAlerts/sos', payload);
-        
-        if (response.data && response.data.success) {
-          setSending(false);
-          setCancelEnabled(false);
-        } else {
-          throw new Error('Failed to send SOS');
-        }
-      } catch (error: any) {
-        console.error("Failed to send SOS:", error);
-        if (error.response?.status === 400) {
-          Alert.alert("SOS Already Sent", error.response.data.message || "You have already sent an SOS request.");
-        } else {
-          Alert.alert("Error", "Failed to send SOS. Please try again.");
-        }
-        navigation.goBack();
+    try {
+      const { status } = await Location.requestForegroundPermissionsAsync();
+      if (status !== "granted") {
+        setLocationDenied(true);
+        setErrorMessage("Location permission is required. No SOS request was submitted.");
+        setPhase("error");
+        return;
       }
-    };
 
-    sendSos();
-
-    const cancelTimer = setTimeout(() => {
-      setCancelEnabled(false);
-    }, 5000);
-
-    return () => clearTimeout(cancelTimer);
-  }, []);
-
-  const handleCancel = () => {
-    if (cancelEnabled) {
-      navigation.goBack();
+      const location = await Location.getCurrentPositionAsync({
+        accuracy: Location.Accuracy.High,
+      });
+      setPhase("submitting");
+      requestStarted = true;
+      const response = await api.post("sosAlerts/sos", {
+        latitude: location.coords.latitude,
+        longitude: location.coords.longitude,
+      });
+      const recorded = response.data?.data as SosReceipt | undefined;
+      if (!response.data?.success || recorded?.status !== "recorded" || !recorded.id) {
+        throw new Error("Invalid SOS receipt");
+      }
+      setReceipt(recorded);
+      setPhase("recorded");
+    } catch {
+      setErrorMessage(
+        requestStarted
+          ? "Could not confirm whether the server recorded your request. You can retry; an existing active request will be returned if one was saved."
+          : "Could not get your current location. No SOS request was submitted. Check location services and try again."
+      );
+      setPhase("error");
     }
   };
 
-  const handleBackHome = () => {
-    navigation.goBack();
+  const confirmSend = () => {
+    Alert.alert(
+      "Record an SOS request?",
+      "OceanPulse only records this request on its server. No responder or emergency service is notified. Contact your local emergency service directly.",
+      [
+        { text: "Go back", style: "cancel" },
+        { text: "Record request", onPress: sendSos },
+      ]
+    );
   };
 
+  const receivedAt = receipt?.receivedAt && !Number.isNaN(Date.parse(receipt.receivedAt))
+    ? new Date(receipt.receivedAt).toLocaleString()
+    : null;
+
   return (
-    <View style={styles.container}>
-      {sending ? (
+    <ScrollView contentContainerStyle={styles.container}>
+      {phase === "ready" && (
         <>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.text}>Sending Emergency Signal...</Text>
-
-          {cancelEnabled && (
-            <TouchableOpacity style={styles.cancelButton} onPress={handleCancel}>
-              <Text style={styles.cancelButtonText}>Cancel SOS</Text>
-            </TouchableOpacity>
-          )}
-        </>
-      ) : (
-        <>
-          <Text style={styles.successIcon}>✅</Text>
-          <Text style={styles.successText}>SOS Sent Successfully!</Text>
-          <Text style={styles.subText}>Stay calm. Help is on the way.</Text>
-
-          <TouchableOpacity style={styles.backButton} onPress={handleBackHome}>
-            <Text style={styles.backButtonText}>Back to Home</Text>
+          <Text style={styles.title}>SOS request</Text>
+          <Text style={styles.body}>
+            Record your current location with the OceanPulse server. This prototype does not dispatch rescue or notify a responder.
+          </Text>
+          <Text style={styles.guidance}>If you need urgent help, contact your local emergency service directly.</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={confirmSend} accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>Record SOS request</Text>
+          </TouchableOpacity>
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
+            <Text style={styles.secondaryButtonText}>Back to home</Text>
           </TouchableOpacity>
         </>
       )}
-    </View>
+
+      {(phase === "locating" || phase === "submitting") && (
+        <>
+          <ActivityIndicator size="large" color={COLORS.primary} />
+          <Text style={styles.title}>{phase === "locating" ? "Getting your location" : "Recording your request"}</Text>
+          <Text style={styles.body}>
+            {phase === "locating"
+              ? "Your request has not been submitted yet."
+              : "Waiting for confirmation from the OceanPulse server. Closing this screen will not cancel the request."}
+          </Text>
+        </>
+      )}
+
+      {phase === "recorded" && receipt && (
+        <>
+          <Text style={styles.title}>Request recorded on server</Text>
+          <Text style={styles.body}>
+            {receipt.alreadyActive
+              ? "Your existing active SOS request was found. A second request was not created."
+              : "The OceanPulse server saved your SOS request."}
+          </Text>
+          <Text style={styles.receipt}>Receipt ID: {receipt.id}</Text>
+          {receivedAt && <Text style={styles.receipt}>Recorded: {receivedAt}</Text>}
+          <Text style={styles.guidance}>
+            No responder or emergency service has been notified by OceanPulse. Contact your local emergency service directly if you need help.
+          </Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>Back to home</Text>
+          </TouchableOpacity>
+        </>
+      )}
+
+      {phase === "error" && (
+        <>
+          <Text style={styles.title}>SOS receipt unavailable</Text>
+          <Text style={styles.body}>{errorMessage}</Text>
+          <Text style={styles.guidance}>Do not rely on this app for emergency help. Contact your local emergency service directly.</Text>
+          <TouchableOpacity style={styles.primaryButton} onPress={confirmSend} accessibilityRole="button">
+            <Text style={styles.primaryButtonText}>Try again</Text>
+          </TouchableOpacity>
+          {locationDenied && (
+            <TouchableOpacity style={styles.secondaryButton} onPress={() => Linking.openSettings()} accessibilityRole="button">
+              <Text style={styles.secondaryButtonText}>Open device settings</Text>
+            </TouchableOpacity>
+          )}
+          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
+            <Text style={styles.secondaryButtonText}>Back to home</Text>
+          </TouchableOpacity>
+        </>
+      )}
+    </ScrollView>
   );
 }
 
-// (keep your existing styles)
 const styles = StyleSheet.create({
   container: {
-    flex: 1,
-    backgroundColor: 'white',
-    alignItems: 'center',
-    justifyContent: 'center',
-    paddingHorizontal: 20,
+    flexGrow: 1,
+    backgroundColor: "white",
+    alignItems: "center",
+    justifyContent: "center",
+    padding: 24,
   },
-  text: {
-    marginTop: 20,
-    fontSize: 20,
-    color: COLORS.primary,
-    fontWeight: 'bold',
-    textAlign: 'center',
-  },
-  cancelButton: {
-    marginTop: 30,
-    paddingVertical: 10,
-    paddingHorizontal: 30,
-    backgroundColor: COLORS.lighBlue,
-    borderRadius: 8,
-  },
-  cancelButtonText: {
-    color: 'white',
-    fontSize: 16,
-    fontWeight: 'bold',
-  },
-  successIcon: {
-    fontSize: 60,
-  },
-  successText: {
+  title: {
     fontSize: 24,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     color: COLORS.primary,
-    marginTop: 20,
-    textAlign: 'center',
+    textAlign: "center",
+    marginTop: 16,
   },
-  subText: {
+  body: {
     fontSize: 16,
     color: COLORS.gray,
-    marginTop: 10,
-    textAlign: 'center',
+    textAlign: "center",
+    lineHeight: 24,
+    marginTop: 16,
   },
-  backButton: {
-    marginTop: 30,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 12,
-    paddingHorizontal: 40,
-    borderRadius: 8,
-  },
-  backButtonText: {
-    color: 'white',
+  guidance: {
     fontSize: 16,
-    fontWeight: 'bold',
-  }
+    fontWeight: "bold",
+    color: COLORS.primary,
+    textAlign: "center",
+    lineHeight: 24,
+    marginTop: 24,
+  },
+  receipt: {
+    fontSize: 14,
+    color: COLORS.gray,
+    textAlign: "center",
+    marginTop: 10,
+  },
+  primaryButton: {
+    marginTop: 28,
+    backgroundColor: COLORS.primary,
+    paddingVertical: 14,
+    paddingHorizontal: 24,
+    borderRadius: 8,
+    minWidth: 200,
+    alignItems: "center",
+  },
+  primaryButtonText: {
+    color: "white",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  secondaryButton: {
+    marginTop: 14,
+    padding: 12,
+  },
+  secondaryButtonText: {
+    color: COLORS.primary,
+    fontSize: 16,
+  },
 });
