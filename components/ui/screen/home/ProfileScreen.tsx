@@ -6,14 +6,14 @@ import {
 } from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
+import { StackNavigationProp } from '@react-navigation/stack';
 import { RootStackParamList } from '@/app/(tabs)/navigation/stack-navigation/AppStackParamList';
 import api from '@/utils/api';
 import { useDispatch } from 'react-redux';
 import { logout } from '@/store/authSlice';
 import { Ionicons } from '@expo/vector-icons';
 
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
+type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 interface User {
     _id?: string;
