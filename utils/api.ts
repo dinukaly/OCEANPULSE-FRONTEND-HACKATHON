@@ -1,6 +1,8 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import getBaseUrl from '@/constants/BASEURL';
+import { clearSession, getToken } from '@/utils/session';
+import store from '@/store';
+import { logout } from '@/store/authSlice';
 
 const api = axios.create({
   baseURL: getBaseUrl(),
@@ -13,7 +15,7 @@ const api = axios.create({
 api.interceptors.request.use(
   async (config) => {
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
       if (token) {
         // Properly format the Bearer token
         config.headers.Authorization = `Bearer ${token}`;
@@ -36,9 +38,11 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear auth data on 401 responses
       try {
-        await AsyncStorage.multiRemove(['token', 'userId', 'username', 'user']);
+        await clearSession();
       } catch (e) {
         console.error('Error clearing auth data:', e);
+      } finally {
+        store.dispatch(logout());
       }
     }
     return Promise.reject(error);

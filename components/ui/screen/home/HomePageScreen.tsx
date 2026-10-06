@@ -9,6 +9,7 @@ import AsyncStorage from '@react-native-async-storage/async-storage';
 import { Icon } from "react-native-paper";
 import { useDispatch } from "react-redux";
 import { logout } from "@/store/authSlice";
+import { clearSession } from '@/utils/session';
 
 
 export default function HomePageScreen({ navigation }: any) {
@@ -19,15 +20,7 @@ export default function HomePageScreen({ navigation }: any) {
     useEffect(() => {
         const loadUsername = async () => {
             const storedUsername = await AsyncStorage.getItem('username');
-            const storedToken = await AsyncStorage.getItem('token');
             setUsername(storedUsername || 'User');
-            console.log('token:', storedToken);
-            if (!storedToken) {
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Login' }],
-                });
-            }
         };
         loadUsername();
     }, []);
@@ -90,7 +83,7 @@ export default function HomePageScreen({ navigation }: any) {
     const dispatch = useDispatch();
     const handleLogout = async () => {
         try {
-            await AsyncStorage.multiRemove(['token', 'user', 'userId', 'username']);
+            await clearSession();
             dispatch(logout());
             // No need to navigate 
         } catch (error) {

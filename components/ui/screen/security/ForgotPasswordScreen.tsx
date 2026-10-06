@@ -22,7 +22,7 @@ export default function ForgotPasswordScreen({navigation}: any) {
             setLoading(true);
             const response = await api.post('/users/forgot-password', { email });
             console.log("Reset instructions sent:", response.data);
-            alert("Reset instructions have been sent to your email.");
+            alert("If this account exists, a reset code has been sent to its email.");
             navigation.navigate('ResetPasswordOtpVefication', {
                 email
             });

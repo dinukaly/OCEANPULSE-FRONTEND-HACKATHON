@@ -3,9 +3,6 @@ import React, { useState } from 'react';
 import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
 import { TextInput } from 'react-native-paper';
 import api from '@/utils/api';
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useDispatch } from 'react-redux';
-import { setUserId } from '@/store/authSlice';
 import { validateName, validateEmail, validatePassword, validateConfirmPassword, validatePhone, validateBoatId, validateFields } from '@/utils/validation';
 
 export default function SignupScreen({ navigation }: any) {
@@ -27,8 +24,6 @@ export default function SignupScreen({ navigation }: any) {
         boatId: ''
     });
     
-    const dispatch = useDispatch();
-
     const validateInputs = () => {
         const firstNameValidation = validateName(firstName, 'First Name');
         const lastNameValidation = validateName(lastName, 'Last Name');
@@ -76,9 +71,7 @@ export default function SignupScreen({ navigation }: any) {
             
             const { data } = response.data;
             
-            if (data && data.user && data.token) {
-                await AsyncStorage.setItem('tempToken', data.token);
-                
+            if (data && data.user) {
                 navigation.navigate('VerifyOtp', { 
                     username: data.user.username,
                     email: data.user.email

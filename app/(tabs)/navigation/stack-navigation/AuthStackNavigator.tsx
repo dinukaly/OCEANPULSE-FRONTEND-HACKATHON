@@ -1,6 +1,4 @@
-import HomePageScreen from '@/components/ui/screen/home/HomePageScreen';
 import { createStackNavigator } from '@react-navigation/stack';
-import HomeBottomTabNavigation from '../tab-navigation/HomeBottomTabNavigation';
 import SignupScreen from '@/components/ui/screen/security/SignupScreen';
 import LoginScreen from '@/components/ui/screen/security/LoginScreen';
 import PasswordResetScreen from '@/components/ui/screen/security/PasswordResetScreen';
@@ -12,10 +10,7 @@ import VerifyOtpScreen from '@/components/ui/screen/security/VerifyOtpScreen';
 const Stack = createStackNavigator();
 export default function StackNavigator() {
     return (
-        <Stack.Navigator>
-            <Stack.Screen name={'Process'}
-                options={{ headerLeft: () => null, headerShown: false }}
-                component={HomeBottomTabNavigation} />
+        <Stack.Navigator initialRouteName="Welcome">
             <Stack.Screen name={'Welcome'}
                 options={{ title: '', headerLeft: () => null, headerShown: false }}
                 component={WelcomePageScreen} />

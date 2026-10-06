@@ -2,14 +2,14 @@ import { useState, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from "react-native";
 import { COLORS } from "@/constants/ColorPallet";
 import api from '@/utils/api';
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch } from 'react-redux';
 import { setUserId } from '@/store/authSlice';
 import { Icon } from "react-native-paper";
+import { saveSession } from '@/utils/session';
 
 export default function VerifyOtpScreen({ navigation, route }: any) {
     const { username, email } = route.params;
-    const [otp, setOtp] = useState(["", "", "", "", ""]);
+    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [countdown, setCountdown] = useState(60);
@@ -57,52 +57,26 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
             setLoading(true);
             const otpString = otp.join('');
 
-            if (otpString.length !== 5 || !/^\d{5}$/.test(otpString)) {
-                Alert.alert('Error', 'Please enter a valid 5-digit OTP');
+            if (otpString.length !== 6 || !/^\d{6}$/.test(otpString)) {
+                Alert.alert('Error', 'Please enter a valid 6-digit code');
                 return;
             }
-
-            console.log('Verifying OTP:', { username, otp: otpString });
 
             const response = await api.post('users/verify-otp', {
                 username,
                 otp: otpString
             });
 
-            console.log('OTP verification response:', response.data);
-
             if (response.data.success) {
                 const { token, user } = response.data.data;
 
                 // Save the active token and user information
-                await AsyncStorage.multiSet([
-                    ['token', token],
-                    ['userId', user.userId.toString()],
-                    ['username', user.username],
-                    ['user', JSON.stringify(user)]
-                ]);
-
-                // Clean up any temporary tokens
-                await AsyncStorage.removeItem('tempToken');
+                await saveSession(token, user);
 
                 // Update Redux state
                 dispatch(setUserId(user.userId.toString()));
 
-                Alert.alert(
-                    'Success',
-                    'Account verified successfully',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => {
-                                navigation.reset({
-                                    index: 0,
-                                    routes: [{ name: 'Login' }],
-                                });
-                            }
-                        }
-                    ]
-                );
+                Alert.alert('Success', 'Account verified successfully');
             } else {
                 throw new Error('Verification failed');
             }
@@ -119,12 +93,11 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
         try {
             setResendLoading(true);
 
-            // Call the forgot password endpoint to get a new OTP
-            const response = await api.post('users/forgot-password', { email });
+            const response = await api.post('users/resend-verification-otp', { username, email });
 
             if (response.data.success) {
                 // Reset the OTP fields
-                setOtp(["", "", "", "", ""]);
+                setOtp(["", "", "", "", "", ""]);
 
                 // Reset countdown
                 setCountdown(60);
@@ -151,13 +124,13 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
 
             <Text style={styles.header}>Verify OTP Code</Text>
             <Text style={{ fontSize: 14, fontWeight: "bold", color: COLORS.gray, alignSelf: "center", marginTop: -10 }}>
-                We'll send a code to {email}
+                We sent a code to {email}
             </Text>
 
             <Text style={styles.label}>Enter Code</Text>
 
             <View style={styles.otpContainer}>
-                {[0, 1, 2, 3, 4].map((index) => (
+                {[0, 1, 2, 3, 4, 5].map((index) => (
                     <TextInput
                         key={index}
                         style={styles.otpInput}
@@ -173,9 +146,15 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 ))}
             </View>
 
-            <TouchableOpacity style={styles.continueButton} onPress={handleVerifyOtp}>
-                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>Continue</Text>
+            <TouchableOpacity style={styles.continueButton} onPress={handleVerifyOtp} disabled={loading} accessibilityRole="button">
+                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>{loading ? 'Verifying...' : 'Continue'}</Text>
             </TouchableOpacity>
+
+            {resendLoading ? <ActivityIndicator color={COLORS.primary} /> : canResend ? (
+                <TouchableOpacity onPress={handleResendOtp} accessibilityRole="button" style={{ marginTop: 16 }}>
+                    <Text style={{ color: '#0456C7', fontWeight: 'bold' }}>Resend code</Text>
+                </TouchableOpacity>
+            ) : <Text style={{ marginTop: 16, color: COLORS.gray }}>Resend code in {countdown}s</Text>}
 
             <TouchableOpacity style={{ marginTop: 25 }} onPress={() => navigation.navigate('Login')}>
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
@@ -211,12 +190,12 @@ const styles = StyleSheet.create({
     otpContainer: {
         flexDirection: "row",
         justifyContent: "space-between",
-        width: "70%",
+        width: "90%",
         marginTop: 15,
         marginBottom: 20,
     },
     otpInput: {
-        width: 50,
+        width: 42,
         height: 50,
         borderWidth: 1,
         borderColor: "#ccc",

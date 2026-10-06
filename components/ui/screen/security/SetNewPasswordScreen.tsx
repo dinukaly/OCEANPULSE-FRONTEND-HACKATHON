@@ -32,7 +32,7 @@ export default function SetNewPasswordScreen({ route, navigation }: any) {
                 password,
                 resetToken,
             });
-            Alert.alert('Success', response.data.message);
+            Alert.alert('Success', response.data.data.message);
             navigation.navigate('Login');
         } catch (err: any) {
             Alert.alert('Error', err.response?.data?.message || err.message || 'Something went wrong');

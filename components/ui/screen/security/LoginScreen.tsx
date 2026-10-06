@@ -1,44 +1,19 @@
 import { COLORS } from "@/constants/ColorPallet";
-import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
+import { useState } from "react";
+import { View, Text, StyleSheet, TouchableOpacity, Alert } from "react-native";
 import { Icon, TextInput } from "react-native-paper";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch } from 'react-redux';
 import { setUserId } from '@/store/authSlice';
 import api from '@/utils/api';
 import { validateEmail, validatePassword, validateFields } from '@/utils/validation';
+import { saveSession } from '@/utils/session';
 
 export default function LoginScreen({ navigation }: any) {
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
     const [loading, setLoading] = useState(false);
-    const [initialChecking, setInitialChecking] = useState(true);
     const [errors, setErrors] = useState({ email: '', password: '' });
     const dispatch = useDispatch();
-
-    useEffect(() => {
-        const checkToken = async () => {
-            try {
-                const token = await AsyncStorage.getItem('token');
-                const userId = await AsyncStorage.getItem('userId');
-                
-                if (token && userId) {
-                    console.log('Token found, navigating to Process screen');
-                    dispatch(setUserId(userId)); // This will now set isAuthenticated to true
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: 'Process' }],
-                    });
-                }
-            } catch (error) {
-                console.error('Error checking authentication status:', error);
-            } finally {
-                setInitialChecking(false);
-            }
-        };
-        
-        checkToken();
-    }, [dispatch, navigation]);
 
     const validateInputs = () => {
         const emailValidation = validateEmail(email);
@@ -59,36 +34,23 @@ export default function LoginScreen({ navigation }: any) {
         try {
             setLoading(true);
             const response = await api.post('users/login', { email, password });
-            console.log('Login response:', response.data);
-
             const { data } = response.data;
 
-            if (!data || !data.user || !data.token) {
+            if (!data || !data.user) {
                 throw new Error('Invalid response structure from server');
             }
 
             const { user, token } = data;
 
-            if (!user.isActive) {
+            if (data.requiresVerification) {
                 navigation.navigate('VerifyOtp', { 
                     username: user.username, 
                     email: user.email 
                 });
-                await AsyncStorage.setItem('tempToken', token);
             } else {
-                await AsyncStorage.multiSet([
-                    ['token', token],
-                    ['userId', user.userId.toString()],
-                    ['username', user.username],
-                    ['user', JSON.stringify(user)]
-                ]);
-
-                dispatch(setUserId(user.userId.toString())); // This will now set isAuthenticated to true
-
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Process' }],
-                });
+                if (!token) throw new Error('Missing access token');
+                await saveSession(token, user);
+                dispatch(setUserId(user.userId.toString()));
             }
         } catch (error: any) {
             const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials.';
@@ -100,15 +62,6 @@ export default function LoginScreen({ navigation }: any) {
     };
 
    
-    if (initialChecking) {
-        return (
-            <View style={styles.centered}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text>Checking login status...</Text>
-            </View>
-        );
-    }
-
     return (
         <View style={styles.container}>
             <View style={styles.headerPanel}>

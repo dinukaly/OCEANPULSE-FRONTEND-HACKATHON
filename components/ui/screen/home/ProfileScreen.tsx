@@ -4,16 +4,12 @@ import {
     ActivityIndicator, ScrollView, TextInput, Alert,
     Modal, SafeAreaView
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import { StackNavigationProp } from '@react-navigation/stack';
-import { RootStackParamList } from '@/app/(tabs)/navigation/stack-navigation/AppStackParamList';
 import api from '@/utils/api';
 import { useDispatch } from 'react-redux';
 import { logout } from '@/store/authSlice';
 import { Ionicons } from '@expo/vector-icons';
+import { clearSession, getToken } from '@/utils/session';
 
-type NavigationProp = StackNavigationProp<RootStackParamList>;
 
 interface User {
     _id?: string;
@@ -57,7 +53,6 @@ const getAvatarColor = (name: string) => {
 };
 
 const ProfileScreen: React.FC = () => {
-    const navigation = useNavigation<NavigationProp>();
     const [user, setUser] = useState<User | null>(null);
     const [formData, setFormData] = useState<Partial<User>>({});
     const [loading, setLoading] = useState(true);
@@ -65,22 +60,9 @@ const ProfileScreen: React.FC = () => {
     const [avatarColor, setAvatarColor] = useState('#61C0BF');
     const dispatch = useDispatch();
 
-    useEffect(() => {
-        const checkToken = async () => {
-            const token = await AsyncStorage.getItem('token');
-            if (!token) {
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Welcome' }],
-                });
-            }
-        };
-        checkToken();
-    }, []);
-
     const fetchProfile = async () => {
         try {
-            const token = await AsyncStorage.getItem('token');
+            const token = await getToken();
             if (!token) {
                 console.log('Token not found');
                 return;
@@ -120,7 +102,7 @@ const ProfileScreen: React.FC = () => {
 
     const handleSave = async () => {
         try {
-            const token = await AsyncStorage.getItem('token');
+            const token = await getToken();
             if (!token) return;
 
             console.log('Submitting form data:', formData); // Add logging to confirm what's being sent
@@ -156,7 +138,7 @@ const ProfileScreen: React.FC = () => {
 
     const handleLogout = async () => {
         try {
-            await AsyncStorage.multiRemove(['token', 'user', 'userId', 'username']);
+            await clearSession();
             dispatch(logout());
             // No need to navigate - the App component will handle navigation based on auth state
         } catch (error) {
