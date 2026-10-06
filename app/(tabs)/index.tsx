@@ -8,6 +8,7 @@ import store, { RootState } from '@/store';
 import { setUserId, logout } from '@/store/authSlice';
 import { clearSession, getToken } from '@/utils/session';
 import api from '@/utils/api';
+import getBaseUrl from '@/constants/BASEURL';
 
 function App() {
   const [isLoading, setLoading] = useState(true);
@@ -66,6 +67,16 @@ function App() {
 }
 
 export default function EntryPoint() {
+  if (!getBaseUrl()) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.restoreText}>
+          API address is not configured. Set EXPO_PUBLIC_API_URL to a reachable URL ending in /api/v1/ and reload the app.
+        </Text>
+      </View>
+    );
+  }
+
   return (
     <Provider store={store}>
       <App />
@@ -76,8 +87,9 @@ export default function EntryPoint() {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
+    backgroundColor: '#fff',
   },
-  restoreText: { margin: 24, marginTop: 80, fontSize: 18 },
+  restoreText: { margin: 24, marginTop: 80, fontSize: 18, color: '#222' },
   retryButton: { marginHorizontal: 24, padding: 16, backgroundColor: '#0456C7', borderRadius: 8 },
   retryText: { color: '#fff', textAlign: 'center', fontWeight: 'bold' },
 });

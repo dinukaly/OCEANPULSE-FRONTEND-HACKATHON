@@ -3,9 +3,6 @@ import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'rea
 import { Icon } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
 import { COLORS } from '@/constants/ColorPallet';
-import axios from 'axios';
-import getBaseUrl from '@/constants/BASEURL';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 import axiosInstance from '@/utils/api';
 
 
@@ -36,7 +33,7 @@ const SeaWaveConditionScreen: React.FC<Props> = ({ latitude, longitude, selected
         const fetchWaveData = async () => {
             try {
                 const response = await axiosInstance.get<{ success: boolean; data?: { hourly: WaveEntry[] } }>(
-                    `${getBaseUrl()}riskPredictions/risk-prediction`,
+                    'riskPredictions/risk-prediction',
                     {
                         params: {
                             latitude: 54.544587,

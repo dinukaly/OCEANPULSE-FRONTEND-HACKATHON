@@ -1,8 +1,6 @@
 import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, ScrollView, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
-import axios from 'axios';
-import getBaseUrl from "@/constants/BASEURL";
 import api from '@/utils/api';
 
 interface WeatherData {

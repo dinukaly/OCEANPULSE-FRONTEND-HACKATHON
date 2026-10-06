@@ -8,9 +8,7 @@ import {
   ActivityIndicator,
 } from 'react-native';
 import { useSelector } from 'react-redux';
-import axios from 'axios';
 import { RootState } from '@/store';
-import getBaseUrl from '@/constants/BASEURL';
 import { COLORS } from '@/constants/ColorPallet';
 import axiosInstance from '@/utils/api';
 
@@ -35,9 +33,7 @@ export default function UserListScreen({ navigation }: any) {
     try {
       setLoading(true);
       setError(null);
-      const response = await axiosInstance.get<{ success: boolean; data: User[] }>( 
-        `${getBaseUrl()}users/users`
-      );
+      const response = await axiosInstance.get<{ success: boolean; data: User[] }>('users/users');
    
       const otherUsers = response.data.data.filter((user: User) => user.userId !== currentUserId);
       setUsers(otherUsers);

@@ -8,8 +8,6 @@ import {
     ActivityIndicator,
 } from 'react-native';
 import { FAB } from 'react-native-paper';
-import axios from 'axios';
-import getBaseUrl from '@/constants/BASEURL';
 import PostCard from './components/PostCard';
 import CreatePostModal from './components/CreatePostModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';

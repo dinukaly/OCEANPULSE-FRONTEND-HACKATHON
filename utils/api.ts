@@ -1,5 +1,5 @@
 import axios from 'axios';
-import getBaseUrl from '@/constants/BASEURL';
+import getBaseUrl, { assertApiConfigured } from '@/constants/BASEURL';
 import { clearSession, getToken } from '@/utils/session';
 import store from '@/store';
 import { logout } from '@/store/authSlice';
@@ -14,6 +14,7 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   async (config) => {
+    assertApiConfigured();
     try {
       const token = await getToken();
       if (token) {

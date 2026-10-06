@@ -15,7 +15,6 @@ KeyboardAvoidingView,
 Platform
 } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
-import getBaseUrl from '@/constants/BASEURL';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import axiosInstance from '@/utils/api';
@@ -76,63 +75,21 @@ async function fetchMessages() {
         setError(null);
         
         console.log('Fetching messages for users:', myId, otherUserId);
-        const res = await axiosInstance.get(
-            `${getBaseUrl()}messages/get?user1=${myId}&user2=${otherUserId}`
-        );
+        const res = await axiosInstance.get('messages/get', {
+            params: { user1: myId, user2: otherUserId },
+        });
         
-        // Handle the format: { data: [...], success: true }
-        if (res.data && typeof res.data === 'object' && Array.isArray(res.data.data)) {
-            // Process messages from res.data.data array
-            const messagesWithIds = res.data.data.map((msg: { id: any; _id: any; senderId: any; timestamp: any; }) => ({
-                ...msg,
-                id: msg.id || msg._id || `${msg.senderId}-${msg.timestamp || Date.now()}`
-            }));
-            
-            // Use a function to compare message arrays and only update if there are changes
-
-            setMessages(prev => {
-                // If the length is different, definitely update
-                if (prev.length !== messagesWithIds.length) {
-                    return messagesWithIds;
-                }
-                
-                // Check if any message IDs are different
-                const prevIds = new Set(prev.map(m => m.id));
-                const hasNewMessages = messagesWithIds.some((m: { id: string; }) => !prevIds.has(m.id));
-                
-                return hasNewMessages ? messagesWithIds : prev;
-            });
-            
-            console.log('Processed messages:', messagesWithIds.length);
-        } 
-        // Check if res.data itself is an array
-        else if (Array.isArray(res.data)) {
-            const messagesWithIds = res.data.map(msg => ({
-                ...msg,
-                id: msg.id || msg._id || `${msg.senderId}-${msg.timestamp || Date.now()}`
-            }));
-            
-            setMessages(messagesWithIds);
-            console.log('Processed messages:', messagesWithIds.length);
-        } 
-        // Handle if the API returns
-        else if (res.data && typeof res.data === 'object' && res.data.messages && Array.isArray(res.data.messages)) {
-            const messagesWithIds = res.data.messages.map((msg: { id: any; _id: any; senderId: any; timestamp: any; }) => ({
-                ...msg,
-                id: msg.id || msg._id || `${msg.senderId}-${msg.timestamp || Date.now()}`
-            }));
-            
-            setMessages(messagesWithIds);
-            console.log('Processed messages:', messagesWithIds.length);
-        } else {
-            // If we get an unexpected response format
-            console.error('Unexpected API response format:', res.data);
-            // Don't clear messages if we already have some and encounter an error
-            if (messages.length === 0) {
-                setMessages([]);
-                setError('Received unexpected data format from server');
-            }
+        if (!res.data?.success || !Array.isArray(res.data?.data)) {
+            throw new Error('Invalid messages response');
         }
+        const receivedMessages = res.data.data as Message[];
+        setMessages(prev => {
+            if (prev.length !== receivedMessages.length) return receivedMessages;
+            const previousIds = new Set(prev.map(message => message.id));
+            return receivedMessages.some(message => !previousIds.has(message.id))
+                ? receivedMessages
+                : prev;
+        });
     } catch (err) {
         const errorMsg = 'Failed to fetch messages';
         console.error(errorMsg, err);
@@ -150,7 +107,6 @@ async function sendMessage() {
         return;
     }
     
-    const url = `${getBaseUrl()}messages/send`;
     const messageText = input.trim();
     
     // Clear input immediately 
@@ -172,24 +128,19 @@ async function sendMessage() {
     // Then send to server
     try {
         const newMessage = {
-            senderId: myId,
             receiverId: otherUserId,
             message: messageText,
-            timestamp: new Date().toISOString()
         };
 
-        const response = await axiosInstance.post(url, newMessage);
-        const savedMessage = response.data; // From backend
+        const response = await axiosInstance.post('messages/send', newMessage);
+        const savedMessage = response.data?.data as Message | undefined;
+        if (!response.data?.success || !savedMessage?.id) {
+            throw new Error('Invalid message response');
+        }
         
-        // Create a proper message object with guaranteed ID
-        const messageWithId: Message = {
-            ...savedMessage,
-            id: savedMessage._id || savedMessage.id || `${myId}-${new Date().getTime()}`
-        };
-
         // Replace temporary message with the one from server
         setMessages(prev => 
-            prev.map(msg => msg.id === tempId ? messageWithId : msg)
+            prev.map(msg => msg.id === tempId ? savedMessage : msg)
         );
         
         // As a backup, also fetch all messages to ensure everything is in sync
