@@ -1,7 +1,9 @@
 import React, { useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text, TouchableOpacity } from "react-native";
+import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text } from "react-native";
 import * as Location from "expo-location";
-import { COLORS } from "@/constants/ColorPallet";
+import ActionButton from "@/components/ui/ActionButton";
+import StatusBanner from "@/components/ui/StatusBanner";
+import { theme } from "@/constants/theme";
 import api from "@/utils/api";
 
 type Phase = "ready" | "locating" | "submitting" | "recorded" | "error";
@@ -78,24 +80,25 @@ export default function EmergencySosScreen({ navigation }: any) {
     <ScrollView contentContainerStyle={styles.container}>
       {phase === "ready" && (
         <>
-          <Text style={styles.title}>SOS request</Text>
-          <Text style={styles.body}>
-            Record your current location with the OceanPulse server. This prototype does not dispatch rescue or notify a responder.
-          </Text>
+          <Text style={styles.title} accessibilityRole="header">SOS request</Text>
+          <StatusBanner
+            tone="warning"
+            title="No rescue dispatch"
+            message="OceanPulse can record your location on its server, but it does not notify a responder or emergency service."
+            style={styles.banner}
+          />
           <Text style={styles.guidance}>If you need urgent help, contact your local emergency service directly.</Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={confirmSend} accessibilityRole="button">
-            <Text style={styles.primaryButtonText}>Record SOS request</Text>
-          </TouchableOpacity>
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
-            <Text style={styles.secondaryButtonText}>Back to home</Text>
-          </TouchableOpacity>
+          <ActionButton label="Record SOS request" variant="danger" onPress={confirmSend} style={styles.primaryAction} />
+          <ActionButton label="Back to home" variant="secondary" onPress={() => navigation.goBack()} style={styles.secondaryAction} />
         </>
       )}
 
       {(phase === "locating" || phase === "submitting") && (
         <>
-          <ActivityIndicator size="large" color={COLORS.primary} />
-          <Text style={styles.title}>{phase === "locating" ? "Getting your location" : "Recording your request"}</Text>
+          <ActivityIndicator size="large" color={theme.colors.accent} />
+          <Text style={styles.title} accessibilityRole="header" accessibilityLiveRegion="polite">
+            {phase === "locating" ? "Getting your location" : "Recording your request"}
+          </Text>
           <Text style={styles.body}>
             {phase === "locating"
               ? "Your request has not been submitted yet."
@@ -106,39 +109,34 @@ export default function EmergencySosScreen({ navigation }: any) {
 
       {phase === "recorded" && receipt && (
         <>
-          <Text style={styles.title}>Request recorded on server</Text>
+          <Text style={styles.title} accessibilityRole="header">Request recorded on server</Text>
           <Text style={styles.body}>
             {receipt.alreadyActive
               ? "Your existing active SOS request was found. A second request was not created."
               : "The OceanPulse server saved your SOS request."}
           </Text>
-          <Text style={styles.receipt}>Receipt ID: {receipt.id}</Text>
+          <Text style={styles.receipt} selectable>Receipt ID: {receipt.id}</Text>
           {receivedAt && <Text style={styles.receipt}>Recorded: {receivedAt}</Text>}
-          <Text style={styles.guidance}>
-            No responder or emergency service has been notified by OceanPulse. Contact your local emergency service directly if you need help.
-          </Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
-            <Text style={styles.primaryButtonText}>Back to home</Text>
-          </TouchableOpacity>
+          <StatusBanner
+            tone="warning"
+            title="No responder notified"
+            message="OceanPulse has not contacted an emergency service. Contact your local emergency service directly if you need help."
+            style={styles.banner}
+          />
+          <ActionButton label="Back to home" onPress={() => navigation.goBack()} style={styles.primaryAction} />
         </>
       )}
 
       {phase === "error" && (
         <>
-          <Text style={styles.title}>SOS receipt unavailable</Text>
-          <Text style={styles.body}>{errorMessage}</Text>
+          <Text style={styles.title} accessibilityRole="header">SOS receipt unavailable</Text>
+          <StatusBanner tone="error" title="Receipt not confirmed" message={errorMessage} style={styles.banner} />
           <Text style={styles.guidance}>Do not rely on this app for emergency help. Contact your local emergency service directly.</Text>
-          <TouchableOpacity style={styles.primaryButton} onPress={confirmSend} accessibilityRole="button">
-            <Text style={styles.primaryButtonText}>Try again</Text>
-          </TouchableOpacity>
+          <ActionButton label="Try again" onPress={confirmSend} style={styles.primaryAction} />
           {locationDenied && (
-            <TouchableOpacity style={styles.secondaryButton} onPress={() => Linking.openSettings()} accessibilityRole="button">
-              <Text style={styles.secondaryButtonText}>Open device settings</Text>
-            </TouchableOpacity>
+            <ActionButton label="Open device settings" variant="secondary" onPress={() => Linking.openSettings()} style={styles.secondaryAction} />
           )}
-          <TouchableOpacity style={styles.secondaryButton} onPress={() => navigation.goBack()} accessibilityRole="button">
-            <Text style={styles.secondaryButtonText}>Back to home</Text>
-          </TouchableOpacity>
+          <ActionButton label="Back to home" variant="secondary" onPress={() => navigation.goBack()} style={styles.secondaryAction} />
         </>
       )}
     </ScrollView>
@@ -148,59 +146,44 @@ export default function EmergencySosScreen({ navigation }: any) {
 const styles = StyleSheet.create({
   container: {
     flexGrow: 1,
-    backgroundColor: "white",
+    backgroundColor: theme.colors.background,
     alignItems: "center",
     justifyContent: "center",
-    padding: 24,
+    padding: theme.spacing.lg,
   },
   title: {
-    fontSize: 24,
+    fontSize: theme.type.title,
     fontWeight: "bold",
-    color: COLORS.primary,
+    color: theme.colors.text,
     textAlign: "center",
-    marginTop: 16,
+    marginTop: theme.spacing.md,
   },
   body: {
-    fontSize: 16,
-    color: COLORS.gray,
+    fontSize: theme.type.body,
+    color: theme.colors.mutedText,
     textAlign: "center",
-    lineHeight: 24,
-    marginTop: 16,
+    marginTop: theme.spacing.md,
   },
   guidance: {
-    fontSize: 16,
+    fontSize: theme.type.body,
     fontWeight: "bold",
-    color: COLORS.primary,
+    color: theme.colors.text,
     textAlign: "center",
-    lineHeight: 24,
-    marginTop: 24,
+    marginTop: theme.spacing.lg,
   },
   receipt: {
-    fontSize: 14,
-    color: COLORS.gray,
+    fontSize: theme.type.caption,
+    color: theme.colors.mutedText,
     textAlign: "center",
-    marginTop: 10,
+    marginTop: theme.spacing.sm,
   },
-  primaryButton: {
-    marginTop: 28,
-    backgroundColor: COLORS.primary,
-    paddingVertical: 14,
-    paddingHorizontal: 24,
-    borderRadius: 8,
-    minWidth: 200,
-    alignItems: "center",
+  banner: {
+    marginTop: theme.spacing.lg,
   },
-  primaryButtonText: {
-    color: "white",
-    fontSize: 16,
-    fontWeight: "bold",
+  primaryAction: {
+    marginTop: theme.spacing.lg,
   },
-  secondaryButton: {
-    marginTop: 14,
-    padding: 12,
-  },
-  secondaryButtonText: {
-    color: COLORS.primary,
-    fontSize: 16,
+  secondaryAction: {
+    marginTop: theme.spacing.sm,
   },
 });

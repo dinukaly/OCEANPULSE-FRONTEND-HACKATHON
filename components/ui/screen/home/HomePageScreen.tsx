@@ -38,7 +38,7 @@ export default function HomePageScreen({ navigation }: any) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerText}>OCEAN PULSE</Text>
-                <TouchableOpacity onPress={handleLogout} style={styles.logoutButton}>
+                <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} accessibilityRole="button" accessibilityLabel="Log out">
                     <Icon source="logout" size={24} color={COLORS.lighBlue} />
                 </TouchableOpacity>
             </View>
@@ -53,6 +53,8 @@ export default function HomePageScreen({ navigation }: any) {
                     <View style={styles.gridRow}>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('Weather')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open weather"
                             style={[styles.btn, styles.weatherBtn]}>
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="umbrella" color={COLORS.background} />
@@ -63,6 +65,9 @@ export default function HomePageScreen({ navigation }: any) {
                         <TouchableOpacity
                             style={[styles.btn, styles.sosBtn]}
                             onPress={() => navigation.navigate('SOSSCREEN')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open SOS request"
+                            accessibilityHint="OceanPulse records requests but does not dispatch rescue"
                         >
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="satellite-uplink" color={COLORS.background} />
@@ -75,6 +80,8 @@ export default function HomePageScreen({ navigation }: any) {
                     <View style={styles.gridRow}>
                         <TouchableOpacity
                             onPress={() => navigation.navigate('Route')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open route map"
                             style={[styles.btn, styles.routeBtn]}
                         >
                             <View style={styles.btnContent}>
@@ -85,6 +92,8 @@ export default function HomePageScreen({ navigation }: any) {
 
                         <TouchableOpacity
                             onPress={() => navigation.navigate('UserListScreen')}
+                            accessibilityRole="button"
+                            accessibilityLabel="Open boat to boat chat"
                             style={[styles.btn, styles.boatBtn]}
                         >
                             <View style={styles.btnContent}>
@@ -95,19 +104,19 @@ export default function HomePageScreen({ navigation }: any) {
                     </View>
 
                     <View style={styles.gridRow}>
-                        <TouchableOpacity style={[styles.btn, styles.waveBtn]}>
+                        <View style={[styles.btn, styles.waveBtn]}>
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="waves" color={COLORS.background} />
                                 <Text style={styles.btnText}>Sea Conditions</Text>
                             </View>
-                        </TouchableOpacity>
+                        </View>
 
-                        <TouchableOpacity style={[styles.btn, styles.communityBtn]}>
+                        <View style={[styles.btn, styles.communityBtn]}>
                             <View style={styles.btnContent}>
                                 <Icon size={40} source="account-group" color={COLORS.background} />
                                 <Text style={styles.btnText}>Community</Text>
                             </View>
-                        </TouchableOpacity>
+                        </View>
                     </View>
                 </View>
             </ScrollView>
@@ -137,6 +146,10 @@ const styles = StyleSheet.create({
     },
     logoutButton: {
         padding: 8,
+        minWidth: 48,
+        minHeight: 48,
+        alignItems: 'center',
+        justifyContent: 'center',
     },
     scrollContent: {
         paddingHorizontal: 16,
