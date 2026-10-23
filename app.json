@@ -15,7 +15,8 @@
       "adaptiveIcon": {
         "foregroundImage": "./assets/images/adaptive-icon.png",
         "backgroundColor": "#ffffff"
-      }
+      },
+      "package": "com.dinukaly.OceanPulse"
     },
     "web": {
       "bundler": "metro",
@@ -33,6 +34,11 @@
         }
       ],
       "expo-secure-store"
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "cb562a1f-a660-4f07-9041-f5993bb994c8"
+      }
+    }
   }
 }
