@@ -1,196 +1,63 @@
-import React, { useEffect, useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator } from 'react-native';
+import React, { useEffect } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity, ActivityIndicator, Linking } from 'react-native';
 import { Icon } from 'react-native-paper';
 import { LinearGradient } from 'expo-linear-gradient';
+import * as Location from 'expo-location';
 import { COLORS } from '@/constants/ColorPallet';
-import axiosInstance from '@/utils/api';
+import { formatUtc, formatValue, marineCoordinates, readMarine, selectedInstant, selectForecast } from '@/utils/conditions';
+import useConditionRequest from '@/utils/useConditionRequest';
+import useConditionsClock from '@/utils/useConditionsClock';
 
+type Props = { latitude?: number; longitude?: number; selectedDate?: string };
 
-
-
-type WaveEntry = {
-    time: string;
-    wave_height: number;
-};
-
-type Props = {
-    latitude: number;
-    longitude: number;
-    selectedDate: string;
-};
-
-
-
-const SeaWaveConditionScreen: React.FC<Props> = ({ latitude, longitude, selectedDate}) => {
-    const [waveData, setWaveData] = useState<WaveEntry[]>([]);
-    const [loading, setLoading] = useState<boolean>(true);
-    const [error, setError] = useState<string>('');
-    const [currentWaveHeight, setCurrentWaveHeight] = useState<number>(0);
-
-    const currentHour = new Date(selectedDate).getHours();
-
+const SeaWaveConditionScreen: React.FC<Props> = ({ latitude, longitude, selectedDate }) => {
+    const { data, loading, error, load, cancel } = useConditionRequest('riskPredictions/risk-prediction', readMarine);
+    const now = useConditionsClock();
+    const reload = () => load(() => marineCoordinates(latitude, longitude, Location));
     useEffect(() => {
-        const fetchWaveData = async () => {
-            try {
-                const response = await axiosInstance.get<{ success: boolean; data?: { hourly: WaveEntry[] } }>(
-                    'riskPredictions/risk-prediction',
-                    {
-                        params: {
-                            latitude: 54.544587,
-                            longitude: 10.227487
-                        },
-                    }
-                );
-    
-           
-    
-                const hourlyData = response.data?.data?.hourly;
-    
-                if (hourlyData && hourlyData.length > 0) {
-                    setCurrentWaveHeight(hourlyData[0].wave_height);
-                    setWaveData(hourlyData);
-                } else {
-           
-                    setError('No wave data available');
-                }
-            } catch (err) {
-                setError('Failed to fetch wave data');
-                console.error(err);
-            } finally {
-                setLoading(false);
-            }
-        };
-    
-        fetchWaveData();
-    }, [latitude, longitude, selectedDate]);
-
-    const getWaveStatus = (height: number): string => {
-        if (height < 0.5) return 'Calm';
-        if (height < 1.5) return 'Moderate Waves';
-        if (height < 2.5) return 'High Waves';
-        return 'Very High Waves';
-    };
-
-    const getStatusColor = (height: number): string => {
-        if (height < 0.5) return '#4CAF50'; // Green
-        if (height < 1.5) return '#FFC107'; // Amber
-        if (height < 2.5) return '#FF9800'; // Orange
-        return '#F44336'; // Red
-    };
-
-    const formatDate = (dateString: string): string => {
-        const date = new Date(dateString);
-        return date.toLocaleDateString('en-US', {
-            weekday: 'long',
-            day: 'numeric',
-            month: 'long',
-            hour: '2-digit',
-            minute: '2-digit'
-        });
-    };
-
-    if (loading) {
-        return (
-            <View style={styles.container}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-            </View>
-        );
-    }
-
-    if (error) {
-        return (
-            <View style={styles.container}>
-                <Text style={styles.errorText}>{error}</Text>
-            </View>
-        );
-    }
-
-    if (waveData.length === 0) {
-        return (
-            <View style={styles.container}>
-                <Text style={styles.errorText}>No data available</Text>
-            </View>
-        );
-    }
-
-    // Get next 3 hours data
-    const nextHoursData = waveData.slice(0, 3);
-
+        void load(() => marineCoordinates(latitude, longitude, Location));
+        return cancel;
+    }, [latitude, longitude, load, cancel]);
+    const selectedTime = selectedInstant(selectedDate, now);
+    const forecast = selectForecast(data?.hourly || [], selectedTime);
+    const retry = <TouchableOpacity onPress={reload} accessibilityRole="button"><Text>Refresh marine forecast</Text></TouchableOpacity>;
+    if (loading) return <View style={styles.container}><ActivityIndicator size="large" color={COLORS.primary} /><Text>Loading location and marine forecast...</Text></View>;
+    if (error || !data) return <View style={styles.container}><Text style={styles.errorText}>{error || 'Marine forecast unavailable'}</Text>{retry}</View>;
     return (
         <View style={styles.container}>
-            {/* Header Section */}
-            <View style={styles.headerMenuIcon}>
-                <Icon size={25} source="dots-vertical" color="#706D6D" />
-            </View>
-
-            <View>
-                <Text style={styles.headerLabel}>Sea Wave Condition</Text>
-                <Text style={styles.dateLabel}>{formatDate(waveData[0].time)}</Text>
-            </View>
-
-            {/* Current Wave Condition */}
-            <LinearGradient
-                colors={['#D9D9D9', 'rgba(4, 86, 199, 0.4)']}
-                locations={[0, 0.8, 1]}
-                start={{ x: 0.5, y: 0 }}
-                end={{ x: 0.5, y: 1 }}
-                style={styles.middleContainer}
-            >
-                <Text style={styles.waveHeightText}>{currentWaveHeight.toFixed(1)} m</Text>
-                <TouchableOpacity
-                    style={[styles.middleContainerBtn, { backgroundColor: getStatusColor(currentWaveHeight) }]}
-                >
-                    <Text style={styles.statusText}>{getWaveStatus(currentWaveHeight)}</Text>
-                </TouchableOpacity>
-                <Text style={styles.suitabilityText}>
-                    {currentWaveHeight < 1.5
-                        ? 'Suitable for all fishermen'
-                        : currentWaveHeight < 2.5
-                            ? 'Suitable for experienced fishermen'
-                            : 'Not recommended for fishing'}
-                </Text>
-            </LinearGradient>
-
-            {/* Next Hours Forecast */}
-            <View style={styles.footerSection}>
-                <View style={styles.sectionHeader}>
-                    <Icon size={30} source="clock-time-five" color={COLORS.primaryTextBlueColor} />
-                    <Text style={styles.sectionHeaderText}>Next 3 Hours</Text>
-                </View>
-
-                {/* Forecast Cards */}
-                <View style={styles.middleCards}>
-                    {nextHoursData.map((hour, index) => (
-                        <View key={index} style={styles.card}>
-                            <Text style={styles.cardTimeText}>
-                                {new Date(hour.time).toLocaleTimeString([], { hour: '2-digit' })}
-                            </Text>
-                            <Text style={styles.cardHeightText}>{hour.wave_height.toFixed(1)} m</Text>
+            <Text style={styles.headerLabel}>Sea Wave Forecast</Text>
+            <Text style={styles.dateLabel}>Requested: {data.requestedLocation.latitude.toFixed(4)}, {data.requestedLocation.longitude.toFixed(4)}</Text>
+            <Text style={styles.dateLabel}>Forecast grid: {data.location.latitude.toFixed(4)}, {data.location.longitude.toFixed(4)}</Text>
+            <Text style={styles.dateLabel}>Retrieved: {formatUtc(data.fetchedAt)}</Text>
+            <Text style={styles.dateLabel}>Model issue time unavailable; retrieval time does not establish model freshness.</Text>
+            {now >= Date.parse(data.refreshAfter) && <Text style={styles.errorText}>This forecast was retrieved over one hour ago. Refresh before relying on it.</Text>}
+            {!Number.isFinite(selectedTime) && <Text style={styles.errorText}>Selected time requires an explicit time zone.</Text>}
+            {!data.available && <Text style={styles.errorText}>Wave heights are unavailable for this forecast grid.</Text>}
+            {!forecast.selected ? <Text style={styles.errorText}>No forecast hour covers the selected time.</Text> : (
+                <>
+                    <Text style={styles.dateLabel}>Forecast hour: {formatUtc(forecast.selected.time)}</Text>
+                    <LinearGradient colors={['#D9D9D9', 'rgba(4, 86, 199, 0.4)']} locations={[0, 0.8, 1]}
+                        start={{ x: 0.5, y: 0 }} end={{ x: 0.5, y: 1 }} style={styles.middleContainer}>
+                        <Text style={forecast.selected.waveHeightM === null ? styles.errorText : styles.waveHeightText}>{formatValue(forecast.selected.waveHeightM, 'm')}</Text>
+                        <Text style={styles.suitabilityText}>Significant wave height forecast. No fishing suitability assessment.</Text>
+                    </LinearGradient>
+                    <View style={styles.footerSection}>
+                        <View style={styles.sectionHeader}>
+                            <Icon size={30} source="clock-time-five" color={COLORS.primaryTextBlueColor} />
+                            <Text style={styles.sectionHeaderText}>Following forecast hours (UTC)</Text>
                         </View>
-                    ))}
-                </View>
-
-                {/* Warning and Actions */}
-                <View style={styles.footerLabels}>
-                    {currentWaveHeight > 2.5 && (
-                        <View style={styles.warningLabel}>
-                            <Icon size={30} source="alert" color={COLORS.primary} />
-                            <Text style={styles.warningText}>
-                                High waves expected. Consider returning to shore soon.
-                            </Text>
+                        <View style={styles.middleCards}>
+                            {forecast.next.map(hour => <View key={hour.time} style={styles.card}>
+                                <Text style={styles.cardTimeText}>{formatUtc(hour.time)}</Text>
+                                <Text style={hour.waveHeightM === null ? styles.dateLabel : styles.cardHeightText}>{formatValue(hour.waveHeightM, 'm')}</Text>
+                            </View>)}
                         </View>
-                    )}
-
-                    <TouchableOpacity style={styles.emergencySosBtn}>
-                        <Text style={styles.buttonText}>Emergency SOS</Text>
-                    </TouchableOpacity>
-
-                    <TouchableOpacity style={styles.reportConditionBtn}>
-                        <Icon size={30} source="pencil-box-multiple-outline" color={COLORS.primaryBlack} />
-                        <Text style={styles.reportButtonText}>Report Conditions</Text>
-                    </TouchableOpacity>
-                </View>
-            </View>
+                        {!forecast.next.length && <Text>No later forecast hours available.</Text>}
+                    </View>
+                </>
+            )}
+            <Text style={styles.dateLabel} accessibilityRole="link" onPress={() => Linking.openURL(data.source.url)}>{data.source.attribution}</Text>
+            {retry}
         </View>
     );
 };

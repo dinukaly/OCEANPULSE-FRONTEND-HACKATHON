@@ -1,143 +1,76 @@
-import React, { useState, useEffect } from "react";
-import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ActivityIndicator } from "react-native";
+import React, { useState } from "react";
+import { View, Text, StyleSheet, Image, TextInput, TouchableOpacity, ActivityIndicator, Linking } from "react-native";
 import { Ionicons } from '@expo/vector-icons';
-import api from '@/utils/api';
-
-interface WeatherData {
-    name: string;
-    weather: Array<{
-        description: string;
-        icon: string;
-    }>;
-    main: {
-        temp: number;
-        humidity: number;
-    };
-    clouds: {
-        all: number;
-    };
-    wind: {
-        speed: number;
-    };
-}
+import { formatUtc, formatValue, readWeather, weatherFreshness } from '@/utils/conditions';
+import useConditionRequest from '@/utils/useConditionRequest';
+import useConditionsClock from '@/utils/useConditionsClock';
 
 export default function WeatherScreen() {
-    const [city, setCity] = useState('Kalpitiya');
     const [searchCity, setSearchCity] = useState('');
-    const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-    const [loading, setLoading] = useState(false);
-    const [error, setError] = useState<string | null>(null);
-
-    const fetchWeather = async (cityName: string) => {
-        if (!cityName.trim()) {
-            setError('Please enter a city name');
-            return;
-        }
-
-        try {
-            setLoading(true);
-            setError(null);
-            const res = await api.get('weatherLogs/weather', {
-                params: { city: cityName }
-            });
-            
-            // Check if response has data property
-            if (res.data && res.data.data) {
-                setWeatherData(res.data.data);
-            } else {
-                setError('No weather data available');
-            }
-        } catch (err: any) {
-            console.error('Weather API Error:', err);
-            if (err.response?.status === 404) {
-                setError('City not found. Please check the city name.');
-            } else if (err.response?.status === 500) {
-                setError('Server error. Please try again later.');
-            } else {
-                setError('Failed to fetch weather data. Please try again.');
-            }
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    useEffect(() => {
-        fetchWeather(city);
-    }, []);
-
+    const [validationError, setValidationError] = useState<string | null>(null);
+    const { data: weatherData, loading, error: requestError, load } = useConditionRequest('weatherLogs/weather', readWeather);
+    const now = useConditionsClock();
+    const error = validationError || requestError;
+    const freshness = weatherData ? weatherFreshness(weatherData, now) : null;
     const handleSearch = () => {
-        if (searchCity.trim() !== '') {
-            setCity(searchCity);
-            fetchWeather(searchCity);
-            setSearchCity('');
-        } else {
-            setError('Please enter a city name');
-        }
+        const city = searchCity.trim();
+        if (!city) { setValidationError('Please enter a city name, optionally followed by a country code.'); return; }
+        setValidationError(null);
+        void load({ city });
     };
 
     return (
         <View style={styles.container}>
             <View style={styles.searchBox}>
-                <TextInput
-                    placeholder="Enter city name"
-                    value={searchCity}
-                    onChangeText={(text) => {
-                        setSearchCity(text);
-                        setError(null);
-                    }}
-                    style={styles.searchInput}
-                />
-                <TouchableOpacity onPress={handleSearch}>
+                <TextInput placeholder="City, country code" value={searchCity} maxLength={100}
+                    onChangeText={value => { setSearchCity(value); setValidationError(null); }} style={styles.searchInput} />
+                <TouchableOpacity onPress={handleSearch} accessibilityRole="button" accessibilityLabel="Search weather">
                     <Ionicons name="search" size={24} color="#0456C7" />
                 </TouchableOpacity>
             </View>
-
-            {error && (
-                <Text style={styles.errorText}>{error}</Text>
-            )}
-
-            {loading ? (
-                <ActivityIndicator size="large" color="#0456C7" style={styles.loader} />
-            ) : weatherData ? (
+            {error && <Text style={styles.errorText}>{error}</Text>}
+            {loading ? <ActivityIndicator size="large" color="#0456C7" style={styles.loader} /> : weatherData ? (
                 <>
                     <View style={styles.header}>
                         <Ionicons name="location-sharp" size={18} color="#0456C7" style={{ marginRight: 6 }} />
-                        <Text style={styles.locationText}>{weatherData.name}</Text>
+                        <Text style={styles.locationText}>{weatherData.location.name || 'Selected location'}{weatherData.location.country ? `, ${weatherData.location.country}` : ''}</Text>
                     </View>
-
-                    <Text style={styles.dateText}>{new Date().toDateString()}</Text>
-
+                    <Text style={styles.dateText}>
+                        Returned location: {weatherData.location.latitude.toFixed(4)}, {weatherData.location.longitude.toFixed(4)}
+                    </Text>
+                    <Text style={styles.dateText}>{weatherData.dataTime ? `Data time: ${formatUtc(weatherData.dataTime)}` : 'Data time unavailable'}</Text>
+                    <Text style={styles.dateText}>Retrieved: {formatUtc(weatherData.fetchedAt)}</Text>
+                    {freshness === 'stale' && <Text style={styles.errorText}>Weather data is over one hour old. Search again to refresh.</Text>}
+                    {freshness === 'unknown' && <Text style={styles.errorText}>Data age cannot be verified. Check the source time and device clock.</Text>}
+                    {!weatherData.available && <Text style={styles.errorText}>Weather measurements are unavailable for this location.</Text>}
                     <View style={styles.weatherCard}>
-                        <Image
-                            source={{ uri:`https://openweathermap.org/img/wn/${weatherData.weather[0].icon}@2x.png`}}
-                            style={styles.weatherIcon}
-                        />
+                        {weatherData.icon && <Image source={{ uri: `https://openweathermap.org/img/wn/${weatherData.icon}@2x.png` }} style={styles.weatherIcon} />}
                         <View style={styles.weatherRow}>
                             <Text style={styles.celciusText}>°C</Text>
-                            <Text style={styles.tempText}>{Math.round(weatherData.main.temp)}</Text>
-                            <Text style={styles.cloudText}>{weatherData.weather[0].description}</Text>
+                            <Text style={weatherData.temperatureC === null ? styles.detailText : styles.tempText}>{weatherData.temperatureC === null ? 'Unavailable' : Math.round(weatherData.temperatureC)}</Text>
+                            <Text style={styles.cloudText}>{weatherData.description || 'Description unavailable'}</Text>
                         </View>
                     </View>
-
                     <View style={styles.detailsCard}>
                         <View style={styles.detailBox}>
                             <Ionicons name="water" size={40} color="#0456C7" />
-                            <Text style={styles.detailText}>{weatherData.main.humidity}%</Text>
+                            <Text style={styles.detailText}>{formatValue(weatherData.humidityPercent, '%')}</Text>
                             <Text style={styles.detailLabel}>Humidity</Text>
                         </View>
                         <View style={styles.detailBox}>
                             <Ionicons name="rainy" size={40} color="#0456C7" />
-                            <Text style={styles.detailText}>{weatherData.clouds.all}%</Text>
+                            <Text style={styles.detailText}>{formatValue(weatherData.cloudCoverPercent, '%')}</Text>
                             <Text style={styles.detailLabel}>Cloudiness</Text>
                         </View>
                         <View style={styles.detailBox}>
                             <Ionicons name="navigate" size={40} color="#0456C7" />
-                            <Text style={styles.detailText}>{weatherData.wind.speed} km/h</Text>
+                            <Text style={styles.detailText}>{formatValue(weatherData.windSpeedMps, 'm/s')}</Text>
                             <Text style={styles.detailLabel}>Wind</Text>
                         </View>
                     </View>
+                    <Text style={styles.dateText} accessibilityRole="link" onPress={() => Linking.openURL(weatherData.source.url)}>{weatherData.source.attribution}</Text>
                 </>
-            ) : null}
+            ) : !error && <Text style={styles.dateText}>Search for a city to load weather. No default location is selected.</Text>}
         </View>
     );
 }

@@ -26,11 +26,7 @@ const icons = {
 
 function SeaWaveTab() {
   return (
-    <SeaWaveConditionScreen
-      latitude={0}
-      longitude={0}
-      selectedDate={new Date().toISOString()}
-    />
+    <SeaWaveConditionScreen />
   );
 }
 
