@@ -1,74 +1,30 @@
-import React, { useState } from "react";
-import { ActivityIndicator, Alert, Linking, ScrollView, StyleSheet, Text } from "react-native";
-import * as Location from "expo-location";
+import React, { useRef } from "react";
+import { ActivityIndicator, Alert, Linking, Platform, ScrollView, StyleSheet, Text } from "react-native";
 import ActionButton from "@/components/ui/ActionButton";
 import StatusBanner from "@/components/ui/StatusBanner";
 import { theme } from "@/constants/theme";
-import api from "@/utils/api";
-
-type Phase = "ready" | "locating" | "submitting" | "recorded" | "error";
-type SosReceipt = {
-  id: string;
-  receivedAt: string | null;
-  status: "recorded";
-  responderNotified: false;
-  alreadyActive: boolean;
-};
+import useSosRequest from "@/utils/useSosRequest";
 
 export default function EmergencySosScreen({ navigation }: any) {
-  const [phase, setPhase] = useState<Phase>("ready");
-  const [receipt, setReceipt] = useState<SosReceipt | null>(null);
-  const [errorMessage, setErrorMessage] = useState("");
-  const [locationDenied, setLocationDenied] = useState(false);
-
-  const sendSos = async () => {
-    let requestStarted = false;
-    setErrorMessage("");
-    setLocationDenied(false);
-    setPhase("locating");
-
-    try {
-      const { status } = await Location.requestForegroundPermissionsAsync();
-      if (status !== "granted") {
-        setLocationDenied(true);
-        setErrorMessage("Location permission is required. No SOS request was submitted.");
-        setPhase("error");
-        return;
-      }
-
-      const location = await Location.getCurrentPositionAsync({
-        accuracy: Location.Accuracy.High,
-      });
-      setPhase("submitting");
-      requestStarted = true;
-      const response = await api.post("sosAlerts/sos", {
-        latitude: location.coords.latitude,
-        longitude: location.coords.longitude,
-      });
-      const recorded = response.data?.data as SosReceipt | undefined;
-      if (!response.data?.success || recorded?.status !== "recorded" || !recorded.id) {
-        throw new Error("Invalid SOS receipt");
-      }
-      setReceipt(recorded);
-      setPhase("recorded");
-    } catch {
-      setErrorMessage(
-        requestStarted
-          ? "Could not confirm whether the server recorded your request. You can retry; an existing active request will be returned if one was saved."
-          : "Could not get your current location. No SOS request was submitted. Check location services and try again."
-      );
-      setPhase("error");
-    }
-  };
-
+  const { phase, receipt, errorMessage, locationDenied, uncertain, send, checkReceipt } = useSosRequest();
+  const confirmationOpen = useRef(false);
   const confirmSend = () => {
+    if (confirmationOpen.current || (phase !== "ready" && phase !== "error")) return;
+    confirmationOpen.current = true;
+    if (Platform.OS === 'web') {
+      try {
+        if (typeof window !== 'undefined' && window.confirm('Record an SOS request? OceanPulse only records this request. No responder or emergency service is notified. Contact your local emergency service directly.')) void send();
+      } finally { confirmationOpen.current = false; }
+      return;
+    }
     Alert.alert(
       "Record an SOS request?",
       "OceanPulse only records this request on its server. No responder or emergency service is notified. Contact your local emergency service directly.",
       [
-        { text: "Go back", style: "cancel" },
-        { text: "Record request", onPress: sendSos },
-      ]
+        { text: "Go back", style: "cancel", onPress: () => { confirmationOpen.current = false; } },
+        { text: "Record request", onPress: () => { confirmationOpen.current = false; void send(); } },
+      ],
+      { cancelable: true, onDismiss: () => { confirmationOpen.current = false; } }
     );
   };
 
@@ -89,19 +45,21 @@ export default function EmergencySosScreen({ navigation }: any) {
           />
           <Text style={styles.guidance}>If you need urgent help, contact your local emergency service directly.</Text>
           <ActionButton label="Record SOS request" variant="danger" onPress={confirmSend} style={styles.primaryAction} />
+          <ActionButton label="Check existing receipt" variant="secondary" onPress={checkReceipt} style={styles.secondaryAction} />
           <ActionButton label="Back to home" variant="secondary" onPress={() => navigation.goBack()} style={styles.secondaryAction} />
         </>
       )}
 
-      {(phase === "locating" || phase === "submitting") && (
+      {(phase === "locating" || phase === "submitting" || phase === "checking") && (
         <>
           <ActivityIndicator size="large" color={theme.colors.accent} />
           <Text style={styles.title} accessibilityRole="header" accessibilityLiveRegion="polite">
-            {phase === "locating" ? "Getting your location" : "Recording your request"}
+            {phase === "locating" ? "Getting your location" : phase === "checking" ? "Checking server receipt" : "Recording your request"}
           </Text>
           <Text style={styles.body}>
             {phase === "locating"
               ? "Your request has not been submitted yet."
+              : phase === "checking" ? "Checking for an existing record. This check does not submit or cancel a request."
               : "Waiting for confirmation from the OceanPulse server. Closing this screen will not cancel the request."}
           </Text>
         </>
@@ -116,7 +74,9 @@ export default function EmergencySosScreen({ navigation }: any) {
               : "The OceanPulse server saved your SOS request."}
           </Text>
           <Text style={styles.receipt} selectable>Receipt ID: {receipt.id}</Text>
-          {receivedAt && <Text style={styles.receipt}>Recorded: {receivedAt}</Text>}
+          {receivedAt ? <Text style={styles.receipt}>Recorded: {receivedAt}</Text> : <Text style={styles.receipt}>Recorded time unavailable</Text>}
+          {receipt.location ? <Text style={styles.receipt}>Recorded location: {receipt.location.latitude}, {receipt.location.longitude}</Text>
+            : <Text style={styles.receipt}>Recorded location unavailable</Text>}
           <StatusBanner
             tone="warning"
             title="No responder notified"
@@ -130,9 +90,10 @@ export default function EmergencySosScreen({ navigation }: any) {
       {phase === "error" && (
         <>
           <Text style={styles.title} accessibilityRole="header">SOS receipt unavailable</Text>
-          <StatusBanner tone="error" title="Receipt not confirmed" message={errorMessage} style={styles.banner} />
+          <StatusBanner tone="error" title={uncertain ? "Submission outcome unknown" : "Receipt not confirmed"} message={errorMessage} style={styles.banner} />
           <Text style={styles.guidance}>Do not rely on this app for emergency help. Contact your local emergency service directly.</Text>
-          <ActionButton label="Try again" onPress={confirmSend} style={styles.primaryAction} />
+          <ActionButton label={uncertain ? "Retry same request" : "Try again"} onPress={confirmSend} style={styles.primaryAction} />
+          <ActionButton label="Check server receipt" variant="secondary" onPress={checkReceipt} style={styles.secondaryAction} />
           {locationDenied && (
             <ActionButton label="Open device settings" variant="secondary" onPress={() => Linking.openSettings()} style={styles.secondaryAction} />
           )}
