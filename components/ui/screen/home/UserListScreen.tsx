@@ -10,9 +10,12 @@ import {
 import { COLORS } from '@/constants/ColorPallet';
 import type { DirectoryUser as User } from '@/utils/contracts';
 import usePagedList from '@/utils/usePagedList';
+import useUnreadCounts from '@/utils/useUnreadCounts';
+import useMessagingActive from '@/utils/useMessagingActive';
 
 export default function UserListScreen({ navigation }: any) {
   const { items: users, loading, loadingMore, error, refresh, loadMore, hasMore } = usePagedList<User>('users/users', 'userId');
+  const unread = useUnreadCounts(users.map(user => user.userId), useMessagingActive());
 
   const handleUserSelect = (user: User) => {
   
@@ -38,6 +41,7 @@ export default function UserListScreen({ navigation }: any) {
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{`${item.firstName} ${item.lastName}`}</Text>
         <Text style={styles.userEmail}>{item.username}</Text>
+        {unread.counts[item.userId] > 0 && <Text>{unread.counts[item.userId]} unread</Text>}
       </View>
     </TouchableOpacity>
   );
@@ -71,6 +75,7 @@ export default function UserListScreen({ navigation }: any) {
         refreshing={loading}
         onRefresh={refresh}
         ListFooterComponent={<View>
+          {unread.error && <Text style={styles.errorText}>{unread.error}</Text>}
           {error && <Text style={styles.errorText}>{error}</Text>}
           {hasMore && <TouchableOpacity onPress={loadMore} disabled={loadingMore} accessibilityRole="button">
             <Text>{loadingMore ? 'Loading...' : 'Load more users'}</Text>

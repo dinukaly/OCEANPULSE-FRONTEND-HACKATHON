@@ -59,7 +59,8 @@
     "react-native-webview": "13.12.5",
     "react-redux": "^9.2.0",
     "@expo/metro-runtime": "~4.0.1",
-    "expo-dev-client": "~5.0.20"
+    "expo-dev-client": "~5.0.20",
+    "expo-crypto": "~14.0.2"
   },
   "devDependencies": {
     "@babel/core": "^7.25.2",
