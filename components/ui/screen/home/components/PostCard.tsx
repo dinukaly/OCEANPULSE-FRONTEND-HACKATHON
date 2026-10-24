@@ -11,6 +11,8 @@ import { Card, IconButton, Avatar } from 'react-native-paper';
 import { COLORS } from '@/constants/ColorPallet';
 
 import type { Post, Comment } from '../Communication';
+import usePagedList from '@/utils/usePagedList';
+import { mergeItems } from '@/utils/contracts';
 
 interface PostCardProps {
     post: Post;
@@ -21,6 +23,9 @@ interface PostCardProps {
 export default function PostCard({ post, onLike, onComment }: PostCardProps) {
     const [commentText, setCommentText] = useState('');
     const [showComments, setShowComments] = useState(false);
+    const { items, loading, error, refresh, loadMore, hasMore, loadingMore } =
+        usePagedList<Comment>(`communityAlerts/posts/${post.id}/comments`, 'id', showComments);
+    const comments = mergeItems(items, post.comments, item => item.id).sort((a, b) => b.id.localeCompare(a.id));
 
     const handleSubmitComment = () => {
         if (commentText.trim()) {
@@ -83,13 +88,15 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
                             size={20}
                             iconColor={COLORS.primary}
                         />
-                        <Text>{post.comments.length} Comments</Text>
+                        <Text>Comments</Text>
                     </TouchableOpacity>
                 </View>
 
                 {showComments && (
                     <View style={styles.commentsSection}>
-                        {post.comments.map((comment) => (
+                        {loading && <Text>Loading comments...</Text>}
+                        {error && <TouchableOpacity onPress={hasMore ? loadMore : refresh}><Text>{error} Retry</Text></TouchableOpacity>}
+                        {comments.map((comment) => (
                             <View key={comment.id} style={styles.comment}>
                                 <Text style={styles.commentUsername}>
                                     {comment.username}
@@ -97,6 +104,9 @@ export default function PostCard({ post, onLike, onComment }: PostCardProps) {
                                 <Text>{comment.content}</Text>
                             </View>
                         ))}
+                        {hasMore && <TouchableOpacity onPress={loadMore} disabled={loadingMore} accessibilityRole="button">
+                            <Text>{loadingMore ? 'Loading...' : 'Load older comments'}</Text>
+                        </TouchableOpacity>}
 
                         <View style={styles.addCommentSection}>
                             <TextInput

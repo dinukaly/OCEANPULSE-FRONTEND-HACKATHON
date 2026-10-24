@@ -9,30 +9,16 @@ import { useDispatch } from 'react-redux';
 import { logout } from '@/store/authSlice';
 import { Ionicons } from '@expo/vector-icons';
 import { clearSession, getToken } from '@/utils/session';
+import type { Profile, ApiResponse as ResponseEnvelope } from '@/utils/contracts';
 
 
-interface User {
-    _id?: string;
-    userId?: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    email: string;
-    isActive: boolean;
-    contact?: string;
-    language?: string;
-    boatId?: string;
+interface User extends Profile {
     avatar?: {
         resourceUrl: string;
     };
 }
 
-interface ApiResponse {
-    data: {
-        user: User;
-    };
-    success: boolean;
-}
+type ApiResponse = ResponseEnvelope<{ user: User }>;
 
 // Function to generate avatar initials
 const getInitials = (firstName: string, lastName: string) => {
@@ -74,7 +60,6 @@ const ProfileScreen: React.FC = () => {
 
             const userData = res.data.data.user;
             
-            console.log('Fetched user data:', userData); // Add logging for debugging
             
             setUser(userData);
             
@@ -105,11 +90,11 @@ const ProfileScreen: React.FC = () => {
             const token = await getToken();
             if (!token) return;
 
-            console.log('Submitting form data:', formData); // Add logging to confirm what's being sent
 
             const res = await api.put<ApiResponse>(
                 'users/update-profile',
-                formData,
+                { firstName: formData.firstName, lastName: formData.lastName, contact: formData.contact,
+                    language: formData.language, boatId: formData.boatId },
                 {
                     headers: { Authorization: `Bearer ${token}` },
                 }
@@ -130,9 +115,9 @@ const ProfileScreen: React.FC = () => {
             
             setModalVisible(false);
             Alert.alert('Success', 'Profile updated successfully!');
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error updating profile:', error instanceof Error ? error.message : 'Unknown error');
-            Alert.alert('Error', 'Failed to update profile. Please try again.');
+            Alert.alert('Error', error.response?.data?.message || 'Failed to update profile. Please try again.');
         }
     };
 
@@ -317,16 +302,16 @@ const ProfileScreen: React.FC = () => {
                                 placeholder="Username"
                             />
                             
-                            <Text style={styles.inputLabel}>Email</Text>
+                            <Text style={styles.inputLabel}>Email (cannot be changed here)</Text>
                             <TextInput
-                                style={styles.input}
+                                style={[styles.input, styles.disabledInput]}
                                 value={formData.email}
-                                onChangeText={text => handleChange('email', text)}
+                                editable={false}
                                 placeholder="Email"
                                 keyboardType="email-address"
                             />
                             
-                            <Text style={styles.inputLabel}>Contact (optional)</Text>
+                            <Text style={styles.inputLabel}>Contact</Text>
                             <TextInput
                                 style={styles.input}
                                 value={formData.contact}
@@ -335,13 +320,16 @@ const ProfileScreen: React.FC = () => {
                                 keyboardType="phone-pad"
                             />
                             
-                            <Text style={styles.inputLabel}>Language (optional)</Text>
+                            <Text style={styles.inputLabel}>Language (Sinhala or Tamil)</Text>
                             <TextInput
                                 style={styles.input}
                                 value={formData.language}
                                 onChangeText={text => handleChange('language', text)}
                                 placeholder="Preferred Language"
                             />
+                            <Text style={styles.inputLabel}>Boat ID (optional)</Text>
+                            <TextInput style={styles.input} value={formData.boatId}
+                                onChangeText={text => handleChange('boatId', text)} placeholder="Boat ID" />
                         </ScrollView>
                         
                         <View style={styles.modalFooter}>

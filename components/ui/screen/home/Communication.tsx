@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import {
     View,
     Text,
@@ -13,6 +13,7 @@ import CreatePostModal from './components/CreatePostModal';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { COLORS } from '@/constants/ColorPallet';
 import api from '@/utils/api';
+import usePagedList from '@/utils/usePagedList';
 
 export interface Comment {
     id: string;
@@ -35,41 +36,12 @@ export interface Post {
 
 
 export default function Communication() {
-    const [posts, setPosts] = useState<Post[]>([]);
-    const [loading, setLoading] = useState(true);
-    const [refreshing, setRefreshing] = useState(false);
+    const { items: posts, setItems: setPosts, loading: loadingPosts, loadingMore, error: listError,
+        refresh: fetchPosts, loadMore, hasMore } = usePagedList<Post>('communityAlerts/posts', 'id');
+    const [loading, setLoading] = useState(false);
     const [createPostVisible, setCreatePostVisible] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
-    const fetchPosts = async () => {
-        try {
-            const response = await api.get('communityAlerts/posts');
-            // Check if response has data property
-            if (response.data && response.data.data) {
-                setPosts(response.data.data);
-                setError(null);
-            } else {
-                throw new Error('Invalid response format');
-            }
-        } catch (err: any) {
-            console.error('Error fetching posts:', err);
-            setError('Failed to load posts. Please try again.');
-        } finally {
-            setLoading(false);
-            setRefreshing(false);
-        }
-    };
-    
-    
-
-    useEffect(() => {
-        fetchPosts();
-    }, []);
-
-    const handleRefresh = () => {
-        setRefreshing(true);
-        fetchPosts();
-    };
 
     const handleCreatePost = async (content: string, imageUri?: string) => {
         try {
@@ -107,7 +79,7 @@ export default function Communication() {
                 throw new Error('Invalid response format');
             }
         } catch (err: any) {
-            console.error('Error creating post:', err);
+            console.error('Error creating post:', err.response?.data?.code || 'REQUEST_FAILED');
             setError(`Failed to create post: ${err.response?.data?.message || err.message}`);
         } finally {
             setLoading(false);
@@ -125,7 +97,7 @@ export default function Communication() {
                 );
             }
         } catch (err: any) {
-            console.error('Error liking post:', err);
+            console.error('Error liking post:', err.response?.data?.code || 'REQUEST_FAILED');
             setError('Failed to like post. Please try again.');
         }
     };
@@ -157,12 +129,12 @@ export default function Communication() {
                 throw new Error('Invalid response format');
             }
         } catch (err: any) {
-            console.error('Error adding comment:', err);
+            console.error('Error adding comment:', err.response?.data?.code || 'REQUEST_FAILED');
             setError('Failed to add comment. Please try again.');
         }
     };
 
-    if (loading && !refreshing) {
+    if (loading || (loadingPosts && posts.length === 0)) {
         return (
             <View style={styles.centerContainer}>
                 <ActivityIndicator size="large" color={COLORS.primary} />
@@ -172,7 +144,7 @@ export default function Communication() {
 
     return (
         <View style={styles.container}>
-            {error && <Text style={styles.errorText}>{error}</Text>}
+            {(error || listError) && <Text style={styles.errorText}>{error || listError}</Text>}
 
             <FlatList
                 data={posts}
@@ -186,12 +158,15 @@ export default function Communication() {
                 )}
                 refreshControl={
                     <RefreshControl
-                        refreshing={refreshing}
-                        onRefresh={handleRefresh}
+                        refreshing={loadingPosts}
+                        onRefresh={fetchPosts}
                         colors={[COLORS.primary]}
                     />
                 }
                 contentContainerStyle={styles.listContainer}
+                ListFooterComponent={hasMore ? <Text accessibilityRole="button" onPress={() => { if (!loadingMore) void loadMore(); }}>
+                    {loadingMore ? 'Loading...' : 'Load more posts'}
+                </Text> : null}
             />
 
             <FAB

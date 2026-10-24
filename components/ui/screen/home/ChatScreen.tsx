@@ -18,6 +18,8 @@ import { Ionicons } from '@expo/vector-icons';
 import { useSelector } from 'react-redux';
 import { RootState } from '@/store';
 import axiosInstance from '@/utils/api';
+import usePagedList from '@/utils/usePagedList';
+import { mergeItems } from '@/utils/contracts';
 
 
 type Message = {
@@ -26,7 +28,7 @@ _id?: string;  // Add this for MongoDB-style IDs
 senderId: string;
 receiverId: string;
 message: string;
-timestamp?: string;
+timestamp?: string | null;
 };
 
 type ChatScreenParams = {
@@ -38,76 +40,30 @@ export default function ChatScreen({ route }: { route: { params: ChatScreenParam
 const { otherUserId, otherUserName } = route.params;
 const myId = useSelector((state: RootState) => state.auth.userId);
 
-console.log('🚀 My UserId:', myId);
-
-const [messages, setMessages] = useState<Message[]>([]);
+const path = `messages/get?user1=${encodeURIComponent(myId || '')}&user2=${encodeURIComponent(otherUserId)}`;
+const { items: messages, setItems: setMessages, loading: isLoading, error: fetchError,
+    refresh: retryMessages, refreshLatest: fetchMessages, loadMore, hasMore, loadingMore } =
+    usePagedList<Message>(path, 'id', Boolean(myId && otherUserId));
 const [input, setInput] = useState('');
-const [isLoading, setIsLoading] = useState(false);
 const [error, setError] = useState<string | null>(null);
+const [sending, setSending] = useState(false);
+const flatListRef = React.useRef<FlatList>(null);
+const scrollForNewMessages = React.useRef(true);
 
-// Set up a polling mechanism for fetching messages
 useEffect(() => {
-    // Fetch messages immediately when component mounts
-    fetchMessages();
-    
-    // Set up polling interval (every 5 seconds)
-    const intervalId = setInterval(() => {
-        if (myId && otherUserId) {
-            fetchMessages();
-        }
-    }, 5000);
-    
-    // Clean up interval on unmount
-    return () => clearInterval(intervalId);
-}, [myId, otherUserId]);
-
-async function fetchMessages() {
-    // Don't fetch if we don't have valid IDs
-    console.log('📦 myId:', myId, 'otherUserId:', otherUserId);
-
-    if (!myId || !otherUserId) {
-        console.log("Missing user IDs, skipping message fetch");
-        return;
-    }
-    
-    try {
-        setIsLoading(prev => messages.length === 0 ? true : prev); // Only show loading if no messages yet
-        setError(null);
-        
-        console.log('Fetching messages for users:', myId, otherUserId);
-        const res = await axiosInstance.get('messages/get', {
-            params: { user1: myId, user2: otherUserId },
-        });
-        
-        if (!res.data?.success || !Array.isArray(res.data?.data)) {
-            throw new Error('Invalid messages response');
-        }
-        const receivedMessages = res.data.data as Message[];
-        setMessages(prev => {
-            if (prev.length !== receivedMessages.length) return receivedMessages;
-            const previousIds = new Set(prev.map(message => message.id));
-            return receivedMessages.some(message => !previousIds.has(message.id))
-                ? receivedMessages
-                : prev;
-        });
-    } catch (err) {
-        const errorMsg = 'Failed to fetch messages';
-        console.error(errorMsg, err);
-
-        if (messages.length === 0) {
-            setError(errorMsg);
-        }
-    } finally {
-        setIsLoading(false);
-    }
-}
+    const interval = setInterval(() => { void fetchMessages(); }, 5000);
+    return () => clearInterval(interval);
+}, [fetchMessages]);
 
 async function sendMessage() {
-    if (!input.trim() || !myId) {
+    if (!input.trim() || !myId || sending) {
         return;
     }
     
     const messageText = input.trim();
+    setSending(true);
+    setError(null);
+    scrollForNewMessages.current = true;
     
     // Clear input immediately 
     setInput('');
@@ -138,47 +94,30 @@ async function sendMessage() {
             throw new Error('Invalid message response');
         }
         
-        // Replace temporary message with the one from server
-        setMessages(prev => 
-            prev.map(msg => msg.id === tempId ? savedMessage : msg)
-        );
-        
-        // As a backup, also fetch all messages to ensure everything is in sync
-        // but with a slight delay to prevent race conditions
-        setTimeout(() => {
-            fetchMessages();
-        }, 1000);
-        
+        setMessages(prev => mergeItems(prev.filter(msg => msg.id !== tempId), [savedMessage], item => item.id));
+        void fetchMessages();
     } catch (err: any) {
         const errorMessage = err.response?.data?.message || 'Failed to send message';
         setError(errorMessage);
-        console.error('Error sending message:', err);
+        console.error('Error sending message:', err.response?.data?.code || 'REQUEST_FAILED');
         
         // Remove the temporary message if sending failed
         setMessages(prev => prev.filter(msg => msg.id !== tempId));
+        setInput(value => value || messageText);
+    } finally {
+        setSending(false);
     }
 }
 
-// Sort messages by timestamp to ensure proper order
-const sortedMessages = React.useMemo(() => {
-    return [...messages].sort((a, b) => {
-        const timeA = a.timestamp ? new Date(a.timestamp).getTime() : 0;
-        const timeB = b.timestamp ? new Date(b.timestamp).getTime() : 0;
-        return timeA - timeB; // Ascending order - oldest to newest
-    });
-}, [messages]);
-
-// Auto-scroll to bottom when new messages arrive
-const flatListRef = React.useRef<FlatList>(null);
-
+// Match the server's stable insertion-order history; pending local messages stay last.
+const sortedMessages = React.useMemo(() => [...messages].sort((a, b) => {
+    if (a.id.startsWith('temp-') !== b.id.startsWith('temp-')) return a.id.startsWith('temp-') ? 1 : -1;
+    return a.id.localeCompare(b.id);
+}), [messages]);
+const newestId = sortedMessages[sortedMessages.length - 1]?.id;
 useEffect(() => {
-    // Scroll to bottom when messages change
-    if (flatListRef.current && messages.length > 0) {
-        setTimeout(() => {
-            flatListRef.current?.scrollToEnd({ animated: true });
-        }, 100);
-    }
-}, [messages]);
+    scrollForNewMessages.current = true;
+}, [newestId]);
 
 const renderMessage = ({ item }: { item: Message }) => (
     <View style={[
@@ -214,10 +153,10 @@ return (
                 <View style={styles.loadingContainer}>
                     <Text>Loading messages...</Text>
                 </View>
-            ) : error ? (
+            ) : (error || fetchError) && messages.length === 0 ? (
                 <View style={styles.errorContainer}>
-                    <Text style={styles.errorText}>{error}</Text>
-                    <Button title="Retry" onPress={fetchMessages} />
+                    <Text style={styles.errorText}>{error || fetchError}</Text>
+                    <Button title="Retry" onPress={retryMessages} />
                 </View>
             ) : (
                 <FlatList
@@ -228,7 +167,14 @@ return (
                     contentContainerStyle={styles.messagesList}
                     inverted={false}
                     showsVerticalScrollIndicator={false}
-                    onContentSizeChange={() => flatListRef.current?.scrollToEnd({ animated: false })}
+                    ListHeaderComponent={<View>
+                        {(error || fetchError) && <Text style={styles.errorText}>{error || fetchError}</Text>}
+                        {hasMore && <Button title={loadingMore ? 'Loading...' : 'Load older messages'} disabled={loadingMore}
+                            onPress={() => { scrollForNewMessages.current = false; void loadMore(); }} />}
+                    </View>}
+                    onContentSizeChange={() => {
+                        if (scrollForNewMessages.current) flatListRef.current?.scrollToEnd({ animated: false });
+                    }}
                     onLayout={() => flatListRef.current?.scrollToEnd({ animated: false })}
                 />
             )}
@@ -241,11 +187,12 @@ return (
                     placeholder="Type your message..."
                     placeholderTextColor="#999"
                     multiline
+                    maxLength={4000}
                 />
                 <TouchableOpacity
                     style={styles.sendButton}
                     onPress={sendMessage}
-                    disabled={!input.trim()}
+                    disabled={!input.trim() || sending}
                 >
                     <Ionicons
                         name="send"
