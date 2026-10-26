@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useRef, useState } from "react";
 import {
   View,
   Text,
@@ -10,7 +10,6 @@ import {
 import { FAB } from "react-native-paper";
 import PostCard from "./components/PostCard";
 import CreatePostModal from "./components/CreatePostModal";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { COLORS } from "@/constants/ColorPallet";
 import api from "@/utils/api";
 import usePagedList from "@/utils/usePagedList";
@@ -45,42 +44,32 @@ export default function Communication() {
     loadMore,
     hasMore,
   } = usePagedList<Post>("communityAlerts/posts", "id");
-  const [loading, setLoading] = useState(false);
   const [createPostVisible, setCreatePostVisible] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const handleCreatePost = async (content: string, imageUri?: string) => {
+  const creating = useRef(false);
+
+  const handleCreatePost = async (content: string): Promise<boolean> => {
+    if (creating.current) return false;
+    creating.current = true;
     try {
-      setLoading(true);
+      const response = await api.post(
+        "communityAlerts/posts",
+        { content },
+        { timeout: 15000 },
+      );
 
-      const userId = await AsyncStorage.getItem("userId");
-      const username = await AsyncStorage.getItem("username");
-
-      if (!userId || !username) {
-        throw new Error("Missing user data. Please log in again.");
-      }
-
-      const payload = {
-        content,
-        userId,
-        username,
-        imageUrl: imageUri || "",
-      };
-
-      const response = await api.post("communityAlerts/posts", payload);
-
-      if (response.data && response.data.data) {
+      if (response.data?.success && response.data.data?.id) {
         const newPost: Post = {
           ...response.data.data,
           comments: response.data.data.comments || [],
           likes: response.data.data.likes || 0,
-          userId: response.data.data.userId || userId,
-          username: response.data.data.username || username,
         };
 
         setPosts((prevPosts) => [newPost, ...prevPosts]);
         setCreatePostVisible(false);
         setError(null);
+        return true;
       } else {
         throw new Error("Invalid response format");
       }
@@ -90,10 +79,12 @@ export default function Communication() {
         err.response?.data?.code || "REQUEST_FAILED",
       );
       setError(
-        `Failed to create post: ${err.response?.data?.message || err.message}`,
+        err.response?.data?.message ||
+          "Post was not confirmed. Check the feed before retrying; the server may have saved it.",
       );
+      return false;
     } finally {
-      setLoading(false);
+      creating.current = false;
     }
   };
 
@@ -120,16 +111,10 @@ export default function Communication() {
 
   const handleComment = async (postId: string, content: string) => {
     try {
-      const userId = await AsyncStorage.getItem("userId");
-      const username = await AsyncStorage.getItem("username");
-
-      if (!userId || !username) {
-        throw new Error("User data missing. Please log in again.");
-      }
-
       const response = await api.post(
         `communityAlerts/posts/${postId}/comment`,
-        { content, userId, username },
+        { content },
+        { timeout: 15000 },
       );
 
       if (response.data && response.data.data) {
@@ -153,7 +138,7 @@ export default function Communication() {
     }
   };
 
-  if (loading || (loadingPosts && posts.length === 0)) {
+  if (loadingPosts && posts.length === 0 && !createPostVisible) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />

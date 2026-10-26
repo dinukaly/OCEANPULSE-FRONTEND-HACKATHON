@@ -1,60 +1,51 @@
-import React, { useState } from 'react';
-import { View, StyleSheet, Dimensions } from 'react-native';
-import MapView, { Marker } from 'react-native-maps';
-import FuelEstimateModal from '@/components/ui/screen/home/components/FuelEstimateModal'; // import the modal we built earlier
+import React, { useMemo, useState } from 'react';
+import { View, Text, StyleSheet } from 'react-native';
+import MapView, { Marker, type MapPressEvent } from 'react-native-maps';
+import FuelEstimateModal from '@/components/ui/screen/home/components/FuelEstimateModal';
+import {
+  directDistanceNm,
+  isRoutePoint,
+  type RoutePoint,
+} from '@/utils/routeEstimate';
 
-const { width, height } = Dimensions.get('window');
+type RouteSelection = { markers: RoutePoint[]; showEstimate: boolean };
 
-export default function RouteScreen({navigation}: any) {
-  const [markers, setMarkers] = useState<{ latitude: number; longitude: number }[]>([]);
-  const [showModal, setShowModal] = useState(false);
-  const [distance, setDistance] = useState(0);
+export default function RouteScreen() {
+  const [selection, setSelection] = useState<RouteSelection>({
+    markers: [],
+    showEstimate: false,
+  });
+  const [error, setError] = useState<string | null>(null);
+  const distance = useMemo(
+    () =>
+      selection.markers.length === 2
+        ? directDistanceNm(selection.markers[0], selection.markers[1])
+        : null,
+    [selection.markers],
+  );
 
-  const fuelRate = 0.5; // liters per nautical mile
-
-  const handleMapPress = (e: { nativeEvent: { coordinate: any; }; }) => {
-    const newMarker = e.nativeEvent.coordinate;
-
-    if (markers.length === 2) {
-      setMarkers([newMarker]);
-      setShowModal(false);
+  const handleMapPress = (event: MapPressEvent) => {
+    const point = event.nativeEvent.coordinate;
+    if (!isRoutePoint(point)) {
+      setError('This point has invalid coordinates. Select another point.');
       return;
     }
-
-    const updated = [...markers, newMarker];
-    setMarkers(updated);
-
-    if (updated.length === 2) {
-      const d = getDistanceFromLatLonInNm(
-        updated[0].latitude,
-        updated[0].longitude,
-        updated[1].latitude,
-        updated[1].longitude
-      );
-      setDistance(d);
-      setShowModal(true);
-    }
-  };
-
-  const getDistanceFromLatLonInNm = (lat1: number, lon1: number, lat2: number, lon2: number) => {
-    const toRad = (v: number) => (v * Math.PI) / 180;
-    const R = 6371; // Earth radius in km
-    const dLat = toRad(lat2 - lat1);
-    const dLon = toRad(lon2 - lon1);
-    const a =
-      Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-      Math.cos(toRad(lat1)) *
-        Math.cos(toRad(lat2)) *
-        Math.sin(dLon / 2) *
-        Math.sin(dLon / 2);
-    const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    const distanceInKm = R * c;
-    const distanceInNm = distanceInKm * 0.539957; // Convert to nautical miles
-    return Number(distanceInNm.toFixed(2));
+    setError(null);
+    // Derive both markers from the latest state, including rapidly consecutive taps.
+    setSelection((previous) => {
+      const markers =
+        previous.markers.length === 2 ? [point] : [...previous.markers, point];
+      return { markers, showEstimate: markers.length === 2 };
+    });
   };
 
   return (
     <View style={styles.container}>
+      <Text>
+        Select two points for an approximate direct distance. A third point
+        starts a new estimate.
+      </Text>
+      {error && <Text accessibilityLiveRegion="polite">{error}</Text>}
       <MapView
         style={styles.map}
         initialRegion={{
@@ -65,16 +56,16 @@ export default function RouteScreen({navigation}: any) {
         }}
         onPress={handleMapPress}
       >
-        {markers.map((marker, index) => (
+        {selection.markers.map((marker, index) => (
           <Marker key={index} coordinate={marker} />
         ))}
       </MapView>
-
       <FuelEstimateModal
-        visible={showModal}
-        onClose={() => setShowModal(false)}
+        visible={selection.showEstimate}
         distance={distance}
-        fuelRate={fuelRate}
+        onClose={() =>
+          setSelection((previous) => ({ ...previous, showEstimate: false }))
+        }
       />
     </View>
   );
@@ -85,7 +76,7 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   map: {
-    width,
-    height,
+    flex: 1,
+    width: '100%',
   },
 });

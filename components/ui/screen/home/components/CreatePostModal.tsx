@@ -1,21 +1,12 @@
-import React, { useState } from 'react';
-import {
-    View,
-    StyleSheet,
-    Modal,
-    TouchableOpacity,
-    Image,
-    Platform,
-} from 'react-native';
+import React, { useRef, useState } from 'react';
+import { View, Text, StyleSheet, Modal } from 'react-native';
 import { TextInput, Button, IconButton } from 'react-native-paper';
-import * as ImagePicker from 'expo-image-picker';
 import { COLORS } from '@/constants/ColorPallet';
-import AsyncStorage from '@react-native-async-storage/async-storage';
 
 interface CreatePostModalProps {
     visible: boolean;
     onDismiss: () => void;
-    onSubmit: (content: string, imageUri?: string) => void;
+    onSubmit: (content: string) => Promise<boolean>;
 }
 
 export default function CreatePostModal({
@@ -24,50 +15,34 @@ export default function CreatePostModal({
     onSubmit,
 }: CreatePostModalProps) {
     const [content, setContent] = useState('');
-    const [imageUri, setImageUri] = useState<string | undefined>();
     const [isSubmitting, setIsSubmitting] = useState(false);
+    const [error, setError] = useState<string | null>(null);
+    const busy = useRef(false);
 
-    const handlePickImage = async () => {
-        const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
-
-        if (permissionResult.granted === false) {
-            alert('Permission to access camera roll is required!');
-            return;
-        }
-
-        const result = await ImagePicker.launchImageLibraryAsync({
-            mediaTypes: ImagePicker.MediaTypeOptions.Images,
-            allowsEditing: true,
-            aspect: [4, 3],
-            quality: 1,
-        });
-
-        if (!result.canceled) {
-            setImageUri(result.assets[0].uri);
-        }
+    const dismiss = () => {
+        if (!busy.current) onDismiss();
     };
 
     const handleSubmit = async () => {
-        if (content.trim() && !isSubmitting) {
-            setIsSubmitting(true);
-            try {
-                // Verify user data exists before submitting
-                const userId = await AsyncStorage.getItem('userId');
-                const username = await AsyncStorage.getItem('username');
-                
-                if (!userId || !username) {
-                    alert('User data missing. Please log in again.');
-                    return;
-                }
-                
-                await onSubmit(content.trim(), imageUri);
-                setContent('');
-                setImageUri(undefined);
-            } catch (error) {
-                console.error('Error submitting post:', error);
-            } finally {
-                setIsSubmitting(false);
-            }
+        const text = content.trim();
+        if (!text || text.length > 4000 || busy.current) return;
+        busy.current = true;
+        setIsSubmitting(true);
+        setError(null);
+        try {
+            const saved = await onSubmit(text);
+            if (saved) setContent('');
+            else
+                setError(
+                    'Post was not confirmed. Your text has been kept. Check the feed before retrying; it may have been saved.',
+                );
+        } catch {
+            setError(
+                'Post was not confirmed. Your text has been kept. Check the feed before retrying; it may have been saved.',
+            );
+        } finally {
+            busy.current = false;
+            setIsSubmitting(false);
         }
     };
 
@@ -75,7 +50,7 @@ export default function CreatePostModal({
         <Modal
             visible={visible}
             animationType="slide"
-            onRequestClose={onDismiss}
+            onRequestClose={dismiss}
             transparent
         >
             <View style={styles.modalContainer}>
@@ -84,10 +59,11 @@ export default function CreatePostModal({
                         <IconButton
                             icon="close"
                             size={24}
-                            onPress={onDismiss}
+                            onPress={dismiss}
+                            disabled={isSubmitting}
+                            accessibilityLabel="Close post editor"
                         />
                     </View>
-
                     <TextInput
                         mode="outlined"
                         value={content}
@@ -95,38 +71,20 @@ export default function CreatePostModal({
                         placeholder="What's on your mind?"
                         multiline
                         numberOfLines={4}
+                        maxLength={4000}
+                        disabled={isSubmitting}
                         style={styles.input}
                     />
-
-                    {imageUri && (
-                        <View style={styles.imageContainer}>
-                            <Image
-                                source={{ uri: imageUri }}
-                                style={styles.previewImage}
-                            />
-                            <IconButton
-                                icon="close"
-                                size={20}
-                                style={styles.removeImage}
-                                onPress={() => setImageUri(undefined)}
-                            />
-                        </View>
+                    <Text>Text posts only. Image uploads are unavailable.</Text>
+                    {error && (
+                        <Text accessibilityLiveRegion="polite">{error}</Text>
                     )}
-
                     <View style={styles.actions}>
-                        <Button
-                            icon="camera"
-                            mode="outlined"
-                            onPress={handlePickImage}
-                            style={styles.imageButton}
-                        >
-                            Add Image
-                        </Button>
-
                         <Button
                             mode="contained"
                             onPress={handleSubmit}
-                            disabled={!content.trim()}
+                            loading={isSubmitting}
+                            disabled={!content.trim() || isSubmitting}
                             style={styles.postButton}
                         >
                             Post
@@ -158,29 +116,10 @@ const styles = StyleSheet.create({
     input: {
         marginBottom: 16,
     },
-    imageContainer: {
-        position: 'relative',
-        marginBottom: 16,
-    },
-    previewImage: {
-        width: '100%',
-        height: 200,
-        borderRadius: 8,
-    },
-    removeImage: {
-        position: 'absolute',
-        top: -10,
-        right: -10,
-        backgroundColor: '#fff',
-    },
     actions: {
         flexDirection: 'row',
         justifyContent: 'space-between',
         alignItems: 'center',
-    },
-    imageButton: {
-        flex: 1,
-        marginRight: 8,
     },
     postButton: {
         flex: 1,
