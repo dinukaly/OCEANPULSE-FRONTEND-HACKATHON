@@ -10,6 +10,7 @@ import { setUserId, logout } from '@/store/authSlice';
 import { clearSession, getToken } from '@/utils/session';
 import api from '@/utils/api';
 import getBaseUrl from '@/constants/BASEURL';
+import { apiConfigurationMessage } from '@/utils/apiConfiguration';
 
 function App() {
   const [isLoading, setLoading] = useState(true);
@@ -72,7 +73,7 @@ export default function EntryPoint() {
     return (
       <View style={styles.container}>
         <Text style={styles.restoreText}>
-          API address is not configured. Set EXPO_PUBLIC_API_URL to a reachable URL ending in /api/v1/ and reload the app.
+          {apiConfigurationMessage} Reload the app after updating it.
         </Text>
       </View>
     );

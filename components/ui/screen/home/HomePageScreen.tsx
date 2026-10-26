@@ -1,15 +1,19 @@
-import { COLORS } from "@/constants/ColorPallet";
-import React, { useState, useEffect } from "react";
+import { logFailure } from '@/utils/logging';
+import { COLORS } from '@/constants/ColorPallet';
+import React, { useState, useEffect } from 'react';
 import {
-    Text, View, StyleSheet, TouchableOpacity, ScrollView,
-    Alert
-} from "react-native";
+    Text,
+    View,
+    StyleSheet,
+    TouchableOpacity,
+    ScrollView,
+    Alert,
+} from 'react-native';
 import AsyncStorage from '@react-native-async-storage/async-storage';
-import { Icon } from "react-native-paper";
-import { useDispatch } from "react-redux";
-import { logout } from "@/store/authSlice";
+import { Icon } from 'react-native-paper';
+import { useDispatch } from 'react-redux';
+import { logout } from '@/store/authSlice';
 import { clearSession } from '@/utils/session';
-
 
 export default function HomePageScreen({ navigation }: any) {
     const [username, setUsername] = useState('');
@@ -27,9 +31,9 @@ export default function HomePageScreen({ navigation }: any) {
         try {
             await clearSession();
             dispatch(logout());
-            // No need to navigate 
+            // No need to navigate
         } catch (error) {
-            console.error('Error during logout:', error);
+            logFailure('session.logout', error);
             Alert.alert('Error', 'Failed to logout. Please try again.');
         }
     };
@@ -38,7 +42,12 @@ export default function HomePageScreen({ navigation }: any) {
         <View style={styles.container}>
             <View style={styles.header}>
                 <Text style={styles.headerText}>OCEAN PULSE</Text>
-                <TouchableOpacity onPress={handleLogout} style={styles.logoutButton} accessibilityRole="button" accessibilityLabel="Log out">
+                <TouchableOpacity
+                    onPress={handleLogout}
+                    style={styles.logoutButton}
+                    accessibilityRole="button"
+                    accessibilityLabel="Log out"
+                >
                     <Icon source="logout" size={24} color={COLORS.lighBlue} />
                 </TouchableOpacity>
             </View>
@@ -46,7 +55,9 @@ export default function HomePageScreen({ navigation }: any) {
             <ScrollView contentContainerStyle={styles.scrollContent}>
                 <View style={styles.greeting}>
                     <Text style={styles.greetingText}>Hello {username}!</Text>
-                    <Text style={styles.greetingSubtext}>Fish smart, Navigate safe</Text>
+                    <Text style={styles.greetingSubtext}>
+                        Fish smart, Navigate safe
+                    </Text>
                 </View>
 
                 <View style={styles.gridContainer}>
@@ -55,9 +66,14 @@ export default function HomePageScreen({ navigation }: any) {
                             onPress={() => navigation.navigate('Weather')}
                             accessibilityRole="button"
                             accessibilityLabel="Open weather"
-                            style={[styles.btn, styles.weatherBtn]}>
+                            style={[styles.btn, styles.weatherBtn]}
+                        >
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="umbrella" color={COLORS.background} />
+                                <Icon
+                                    size={40}
+                                    source="umbrella"
+                                    color={COLORS.background}
+                                />
                                 <Text style={styles.btnText}>Live Weather</Text>
                             </View>
                         </TouchableOpacity>
@@ -70,9 +86,15 @@ export default function HomePageScreen({ navigation }: any) {
                             accessibilityHint="OceanPulse records requests but does not dispatch rescue"
                         >
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="satellite-uplink" color={COLORS.background} />
+                                <Icon
+                                    size={40}
+                                    source="satellite-uplink"
+                                    color={COLORS.background}
+                                />
                                 <Text style={styles.btnText}>SOS Request</Text>
-                                <Text style={styles.sosNote}>No rescue dispatch</Text>
+                                <Text style={styles.sosNote}>
+                                    No rescue dispatch
+                                </Text>
                             </View>
                         </TouchableOpacity>
                     </View>
@@ -85,19 +107,29 @@ export default function HomePageScreen({ navigation }: any) {
                             style={[styles.btn, styles.routeBtn]}
                         >
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="routes" color={COLORS.background} />
+                                <Icon
+                                    size={40}
+                                    source="routes"
+                                    color={COLORS.background}
+                                />
                                 <Text style={styles.btnText}>My Route</Text>
                             </View>
                         </TouchableOpacity>
 
                         <TouchableOpacity
-                            onPress={() => navigation.navigate('UserListScreen')}
+                            onPress={() =>
+                                navigation.navigate('UserListScreen')
+                            }
                             accessibilityRole="button"
                             accessibilityLabel="Open boat to boat chat"
                             style={[styles.btn, styles.boatBtn]}
                         >
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="sail-boat" color={COLORS.background} />
+                                <Icon
+                                    size={40}
+                                    source="sail-boat"
+                                    color={COLORS.background}
+                                />
                                 <Text style={styles.btnText}>Boat to Boat</Text>
                             </View>
                         </TouchableOpacity>
@@ -106,14 +138,24 @@ export default function HomePageScreen({ navigation }: any) {
                     <View style={styles.gridRow}>
                         <View style={[styles.btn, styles.waveBtn]}>
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="waves" color={COLORS.background} />
-                                <Text style={styles.btnText}>Sea Conditions</Text>
+                                <Icon
+                                    size={40}
+                                    source="waves"
+                                    color={COLORS.background}
+                                />
+                                <Text style={styles.btnText}>
+                                    Sea Conditions
+                                </Text>
                             </View>
                         </View>
 
                         <View style={[styles.btn, styles.communityBtn]}>
                             <View style={styles.btnContent}>
-                                <Icon size={40} source="account-group" color={COLORS.background} />
+                                <Icon
+                                    size={40}
+                                    source="account-group"
+                                    color={COLORS.background}
+                                />
                                 <Text style={styles.btnText}>Community</Text>
                             </View>
                         </View>
@@ -140,7 +182,7 @@ const styles = StyleSheet.create({
     },
     headerText: {
         fontSize: 28,
-        fontWeight: "bold",
+        fontWeight: 'bold',
         color: COLORS.lighBlue,
         letterSpacing: 1,
     },
@@ -157,11 +199,11 @@ const styles = StyleSheet.create({
     },
     greeting: {
         marginVertical: 20,
-        alignItems: "center",
+        alignItems: 'center',
     },
     greetingText: {
         fontSize: 22,
-        fontWeight: "bold",
+        fontWeight: 'bold',
         color: COLORS.lighBlue,
     },
     greetingSubtext: {
@@ -182,7 +224,7 @@ const styles = StyleSheet.create({
         borderRadius: 18,
         padding: 20,
         justifyContent: 'center',
-        shadowColor: "#000",
+        shadowColor: '#000',
         shadowOffset: { width: 0, height: 3 },
         shadowOpacity: 0.2,
         shadowRadius: 4,
@@ -193,7 +235,7 @@ const styles = StyleSheet.create({
     },
     btnText: {
         fontSize: 16,
-        fontWeight: "600",
+        fontWeight: '600',
         color: COLORS.background,
         marginTop: 8,
         textAlign: 'center',

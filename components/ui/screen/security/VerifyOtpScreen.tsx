@@ -1,15 +1,24 @@
-import { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from "react-native";
-import { COLORS } from "@/constants/ColorPallet";
+import { logFailure } from '@/utils/logging';
+import { useState, useRef, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    TextInput,
+    Alert,
+    ActivityIndicator,
+} from 'react-native';
+import { COLORS } from '@/constants/ColorPallet';
 import api from '@/utils/api';
 import { useDispatch } from 'react-redux';
 import { setUserId } from '@/store/authSlice';
-import { Icon } from "react-native-paper";
+import { Icon } from 'react-native-paper';
 import { saveSession } from '@/utils/session';
 
 export default function VerifyOtpScreen({ navigation, route }: any) {
     const { username, email } = route.params;
-    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
+    const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [countdown, setCountdown] = useState(60);
@@ -64,7 +73,7 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
 
             const response = await api.post('users/verify-otp', {
                 username,
-                otp: otpString
+                otp: otpString,
             });
 
             if (response.data.success) {
@@ -81,9 +90,10 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 throw new Error('Verification failed');
             }
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Invalid OTP code';
+            const errorMessage =
+                error.response?.data?.message || 'Invalid OTP code';
             Alert.alert('Verification Error', errorMessage);
-            console.error('OTP verification error:', error);
+            logFailure('auth.verify', error);
         } finally {
             setLoading(false);
         }
@@ -93,11 +103,14 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
         try {
             setResendLoading(true);
 
-            const response = await api.post('users/resend-verification-otp', { username, email });
+            const response = await api.post('users/resend-verification-otp', {
+                username,
+                email,
+            });
 
             if (response.data.success) {
                 // Reset the OTP fields
-                setOtp(["", "", "", "", "", ""]);
+                setOtp(['', '', '', '', '', '']);
 
                 // Reset countdown
                 setCountdown(60);
@@ -108,9 +121,10 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 throw new Error('Failed to resend OTP');
             }
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Failed to resend OTP';
+            const errorMessage =
+                error.response?.data?.message || 'Failed to resend OTP';
             Alert.alert('Error', errorMessage);
-            console.error('Resend OTP error:', error);
+            logFailure('auth.resend', error);
         } finally {
             setResendLoading(false);
         }
@@ -123,7 +137,15 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
             </View>
 
             <Text style={styles.header}>Verify OTP Code</Text>
-            <Text style={{ fontSize: 14, fontWeight: "bold", color: COLORS.gray, alignSelf: "center", marginTop: -10 }}>
+            <Text
+                style={{
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: COLORS.gray,
+                    alignSelf: 'center',
+                    marginTop: -10,
+                }}
+            >
                 We sent a code to {email}
             </Text>
 
@@ -146,20 +168,51 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 ))}
             </View>
 
-            <TouchableOpacity style={styles.continueButton} onPress={handleVerifyOtp} disabled={loading} accessibilityRole="button">
-                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>{loading ? 'Verifying...' : 'Continue'}</Text>
+            <TouchableOpacity
+                style={styles.continueButton}
+                onPress={handleVerifyOtp}
+                disabled={loading}
+                accessibilityRole="button"
+            >
+                <Text
+                    style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}
+                >
+                    {loading ? 'Verifying...' : 'Continue'}
+                </Text>
             </TouchableOpacity>
 
-            {resendLoading ? <ActivityIndicator color={COLORS.primary} /> : canResend ? (
-                <TouchableOpacity onPress={handleResendOtp} accessibilityRole="button" style={{ marginTop: 16 }}>
-                    <Text style={{ color: '#0456C7', fontWeight: 'bold' }}>Resend code</Text>
+            {resendLoading ? (
+                <ActivityIndicator color={COLORS.primary} />
+            ) : canResend ? (
+                <TouchableOpacity
+                    onPress={handleResendOtp}
+                    accessibilityRole="button"
+                    style={{ marginTop: 16 }}
+                >
+                    <Text style={{ color: '#0456C7', fontWeight: 'bold' }}>
+                        Resend code
+                    </Text>
                 </TouchableOpacity>
-            ) : <Text style={{ marginTop: 16, color: COLORS.gray }}>Resend code in {countdown}s</Text>}
+            ) : (
+                <Text style={{ marginTop: 16, color: COLORS.gray }}>
+                    Resend code in {countdown}s
+                </Text>
+            )}
 
-            <TouchableOpacity style={{ marginTop: 25 }} onPress={() => navigation.navigate('Login')}>
+            <TouchableOpacity
+                style={{ marginTop: 25 }}
+                onPress={() => navigation.navigate('Login')}
+            >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Icon size={14} source="arrow-left" color="#706D6D" />
-                    <Text style={{ fontSize: 14, fontWeight: "bold", color: "#706D6D", marginLeft: 5 }}>
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: 'bold',
+                            color: '#706D6D',
+                            marginLeft: 5,
+                        }}
+                    >
                         Back to Login
                     </Text>
                 </View>
@@ -170,27 +223,27 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
     container: {
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         fontSize: 30,
-        fontWeight: "bold",
-        color: "#0456C7",
+        fontWeight: 'bold',
+        color: '#0456C7',
         marginBottom: 20,
     },
     label: {
         fontSize: 20,
-        fontWeight: "bold",
-        color: "#1D3557",
+        fontWeight: 'bold',
+        color: '#1D3557',
         alignSelf: 'flex-start',
         marginLeft: 45,
         marginTop: 20,
     },
     otpContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        width: "90%",
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '90%',
         marginTop: 15,
         marginBottom: 20,
     },
@@ -198,14 +251,14 @@ const styles = StyleSheet.create({
         width: 42,
         height: 50,
         borderWidth: 1,
-        borderColor: "#ccc",
+        borderColor: '#ccc',
         borderRadius: 10,
-        textAlign: "center",
+        textAlign: 'center',
         fontSize: 18,
     },
     iconWrapper: {
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: 'center',
+        justifyContent: 'center',
         marginTop: 20,
         marginBottom: 20,
         borderColor: '#D9D9D9',
@@ -215,11 +268,11 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     continueButton: {
-        backgroundColor: "#0456C7",
+        backgroundColor: '#0456C7',
         padding: 15,
         borderRadius: 10,
-        alignItems: "center",
+        alignItems: 'center',
         marginTop: 20,
         width: '80%',
-    }
+    },
 });

@@ -3,9 +3,11 @@ import getBaseUrl, { assertApiConfigured } from '@/constants/BASEURL';
 import { clearSession, getToken } from '@/utils/session';
 import store from '@/store';
 import { logout } from '@/store/authSlice';
+import { logFailure } from './logging';
 
 const api = axios.create({
   baseURL: getBaseUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -23,13 +25,13 @@ api.interceptors.request.use(
       }
       return config;
     } catch (error) {
-      console.error('Error setting auth token:', error);
-      return config;
+      logFailure('session.read', error);
+      throw new Error('Could not read your saved session. Please retry.');
     }
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor
@@ -41,13 +43,13 @@ api.interceptors.response.use(
       try {
         await clearSession();
       } catch (e) {
-        console.error('Error clearing auth data:', e);
+        logFailure('session.clear', e);
       } finally {
         store.dispatch(logout());
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

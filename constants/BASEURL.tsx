@@ -1,19 +1,19 @@
-const configuredUrl = process.env.EXPO_PUBLIC_API_URL?.trim();
-const normalizedUrl = configuredUrl?.replace(/\/+$/, "");
-const isValidApiUrl = Boolean(
-  normalizedUrl &&
-  /^https?:\/\/[^/\s]+(?:\/[^\s]*)?$/i.test(normalizedUrl) &&
-  normalizedUrl.endsWith("/api/v1")
+import {
+  normalizeApiUrl,
+  apiConfigurationMessage,
+} from "@/utils/apiConfiguration";
+
+const apiUrl = normalizeApiUrl(
+  process.env.EXPO_PUBLIC_API_URL,
+  process.env.NODE_ENV === "production",
 );
 
 export default function getBaseUrl(): string | undefined {
-  return isValidApiUrl ? `${normalizedUrl}/` : undefined;
+  return apiUrl;
 }
 
 export function assertApiConfigured(): void {
-  if (!isValidApiUrl) {
-    throw new Error(
-      "Set EXPO_PUBLIC_API_URL to a reachable http(s) URL ending in /api/v1/"
-    );
+  if (!apiUrl) {
+    throw new Error(apiConfigurationMessage);
   }
 }

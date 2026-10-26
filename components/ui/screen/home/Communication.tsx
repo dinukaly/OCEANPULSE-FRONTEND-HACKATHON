@@ -1,3 +1,4 @@
+import { logFailure } from "@/utils/logging";
 import React, { useRef, useState } from "react";
 import {
   View,
@@ -74,10 +75,7 @@ export default function Communication() {
         throw new Error("Invalid response format");
       }
     } catch (err: any) {
-      console.error(
-        "Error creating post:",
-        err.response?.data?.code || "REQUEST_FAILED",
-      );
+      logFailure("post.create", err);
       setError(
         err.response?.data?.message ||
           "Post was not confirmed. Check the feed before retrying; the server may have saved it.",
@@ -101,10 +99,7 @@ export default function Communication() {
         );
       }
     } catch (err: any) {
-      console.error(
-        "Error liking post:",
-        err.response?.data?.code || "REQUEST_FAILED",
-      );
+      logFailure("post.like", err);
       setError("Failed to like post. Please try again.");
     }
   };
@@ -130,10 +125,7 @@ export default function Communication() {
         throw new Error("Invalid response format");
       }
     } catch (err: any) {
-      console.error(
-        "Error adding comment:",
-        err.response?.data?.code || "REQUEST_FAILED",
-      );
+      logFailure("post.comment", err);
       setError("Failed to add comment. Please try again.");
     }
   };
