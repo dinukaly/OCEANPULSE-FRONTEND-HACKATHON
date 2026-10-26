@@ -17,6 +17,7 @@ export default function usePagedList<T extends object>(
     generation: 0,
     cursor: null as string | null,
     anchor: null as string | null,
+    hasSnapshot: false,
     busy: false,
     controller: null as AbortController | null,
   });
@@ -43,6 +44,7 @@ export default function usePagedList<T extends object>(
       setError(null);
       try {
         const anchor = current.anchor;
+        const hasSnapshot = current.hasSnapshot;
         let before = mode === "more" ? current.cursor : null;
         let page: ApiPage<T>;
         let incoming: T[] = [];
@@ -63,8 +65,9 @@ export default function usePagedList<T extends object>(
           );
           if (
             mode !== "latest" ||
-            !anchor ||
-            page.data.some((item) => String(item[key]) <= anchor) ||
+            !hasSnapshot ||
+            (anchor !== null &&
+              page.data.some((item) => String(item[key]) <= anchor)) ||
             !page.pagination.hasMore
           )
             break;
@@ -78,6 +81,9 @@ export default function usePagedList<T extends object>(
           setCursor(current.cursor);
         }
         if (mode !== "more") current.anchor = latestAnchor;
+        // An empty successful read is still a history boundary. On reconnect,
+        // recover all subsequent pages even when socket-only items arrived first.
+        current.hasSnapshot = true;
         setItems((previous) =>
           merge
             ? merge(previous, incoming)
@@ -106,6 +112,7 @@ export default function usePagedList<T extends object>(
   useEffect(() => {
     state.current.cursor = null;
     state.current.anchor = null;
+    state.current.hasSnapshot = false;
     setCursor(null);
     setItems([]);
     setError(null);
