@@ -1,15 +1,24 @@
-import { useState, useRef, useEffect } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from "react-native";
-import { COLORS } from "@/constants/ColorPallet";
+import { logFailure } from '@/utils/logging';
+import { useState, useRef, useEffect } from 'react';
+import {
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    TextInput,
+    Alert,
+    ActivityIndicator,
+} from 'react-native';
+import { COLORS } from '@/constants/ColorPallet';
 import api from '@/utils/api';
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useDispatch } from 'react-redux';
 import { setUserId } from '@/store/authSlice';
-import { Icon } from "react-native-paper";
+import { Icon } from 'react-native-paper';
+import { saveSession } from '@/utils/session';
 
 export default function VerifyOtpScreen({ navigation, route }: any) {
     const { username, email } = route.params;
-    const [otp, setOtp] = useState(["", "", "", "", ""]);
+    const [otp, setOtp] = useState(['', '', '', '', '', '']);
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [countdown, setCountdown] = useState(60);
@@ -57,59 +66,34 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
             setLoading(true);
             const otpString = otp.join('');
 
-            if (otpString.length !== 5 || !/^\d{5}$/.test(otpString)) {
-                Alert.alert('Error', 'Please enter a valid 5-digit OTP');
+            if (otpString.length !== 6 || !/^\d{6}$/.test(otpString)) {
+                Alert.alert('Error', 'Please enter a valid 6-digit code');
                 return;
             }
 
-            console.log('Verifying OTP:', { username, otp: otpString });
-
             const response = await api.post('users/verify-otp', {
                 username,
-                otp: otpString
+                otp: otpString,
             });
-
-            console.log('OTP verification response:', response.data);
 
             if (response.data.success) {
                 const { token, user } = response.data.data;
 
                 // Save the active token and user information
-                await AsyncStorage.multiSet([
-                    ['token', token],
-                    ['userId', user.userId.toString()],
-                    ['username', user.username],
-                    ['user', JSON.stringify(user)]
-                ]);
-
-                // Clean up any temporary tokens
-                await AsyncStorage.removeItem('tempToken');
+                await saveSession(token, user);
 
                 // Update Redux state
                 dispatch(setUserId(user.userId.toString()));
 
-                Alert.alert(
-                    'Success',
-                    'Account verified successfully',
-                    [
-                        {
-                            text: 'OK',
-                            onPress: () => {
-                                navigation.reset({
-                                    index: 0,
-                                    routes: [{ name: 'Login' }],
-                                });
-                            }
-                        }
-                    ]
-                );
+                Alert.alert('Success', 'Account verified successfully');
             } else {
                 throw new Error('Verification failed');
             }
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Invalid OTP code';
+            const errorMessage =
+                error.response?.data?.message || 'Invalid OTP code';
             Alert.alert('Verification Error', errorMessage);
-            console.error('OTP verification error:', error);
+            logFailure('auth.verify', error);
         } finally {
             setLoading(false);
         }
@@ -119,12 +103,14 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
         try {
             setResendLoading(true);
 
-            // Call the forgot password endpoint to get a new OTP
-            const response = await api.post('users/forgot-password', { email });
+            const response = await api.post('users/resend-verification-otp', {
+                username,
+                email,
+            });
 
             if (response.data.success) {
                 // Reset the OTP fields
-                setOtp(["", "", "", "", ""]);
+                setOtp(['', '', '', '', '', '']);
 
                 // Reset countdown
                 setCountdown(60);
@@ -135,9 +121,10 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 throw new Error('Failed to resend OTP');
             }
         } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Failed to resend OTP';
+            const errorMessage =
+                error.response?.data?.message || 'Failed to resend OTP';
             Alert.alert('Error', errorMessage);
-            console.error('Resend OTP error:', error);
+            logFailure('auth.resend', error);
         } finally {
             setResendLoading(false);
         }
@@ -150,14 +137,22 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
             </View>
 
             <Text style={styles.header}>Verify OTP Code</Text>
-            <Text style={{ fontSize: 14, fontWeight: "bold", color: COLORS.gray, alignSelf: "center", marginTop: -10 }}>
-                We'll send a code to {email}
+            <Text
+                style={{
+                    fontSize: 14,
+                    fontWeight: 'bold',
+                    color: COLORS.gray,
+                    alignSelf: 'center',
+                    marginTop: -10,
+                }}
+            >
+                We sent a code to {email}
             </Text>
 
             <Text style={styles.label}>Enter Code</Text>
 
             <View style={styles.otpContainer}>
-                {[0, 1, 2, 3, 4].map((index) => (
+                {[0, 1, 2, 3, 4, 5].map((index) => (
                     <TextInput
                         key={index}
                         style={styles.otpInput}
@@ -173,14 +168,51 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
                 ))}
             </View>
 
-            <TouchableOpacity style={styles.continueButton} onPress={handleVerifyOtp}>
-                <Text style={{ color: "#fff", fontSize: 18, fontWeight: "bold" }}>Continue</Text>
+            <TouchableOpacity
+                style={styles.continueButton}
+                onPress={handleVerifyOtp}
+                disabled={loading}
+                accessibilityRole="button"
+            >
+                <Text
+                    style={{ color: '#fff', fontSize: 18, fontWeight: 'bold' }}
+                >
+                    {loading ? 'Verifying...' : 'Continue'}
+                </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity style={{ marginTop: 25 }} onPress={() => navigation.navigate('Login')}>
+            {resendLoading ? (
+                <ActivityIndicator color={COLORS.primary} />
+            ) : canResend ? (
+                <TouchableOpacity
+                    onPress={handleResendOtp}
+                    accessibilityRole="button"
+                    style={{ marginTop: 16 }}
+                >
+                    <Text style={{ color: '#0456C7', fontWeight: 'bold' }}>
+                        Resend code
+                    </Text>
+                </TouchableOpacity>
+            ) : (
+                <Text style={{ marginTop: 16, color: COLORS.gray }}>
+                    Resend code in {countdown}s
+                </Text>
+            )}
+
+            <TouchableOpacity
+                style={{ marginTop: 25 }}
+                onPress={() => navigation.navigate('Login')}
+            >
                 <View style={{ flexDirection: 'row', alignItems: 'center' }}>
                     <Icon size={14} source="arrow-left" color="#706D6D" />
-                    <Text style={{ fontSize: 14, fontWeight: "bold", color: "#706D6D", marginLeft: 5 }}>
+                    <Text
+                        style={{
+                            fontSize: 14,
+                            fontWeight: 'bold',
+                            color: '#706D6D',
+                            marginLeft: 5,
+                        }}
+                    >
                         Back to Login
                     </Text>
                 </View>
@@ -191,42 +223,42 @@ export default function VerifyOtpScreen({ navigation, route }: any) {
 
 const styles = StyleSheet.create({
     container: {
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: 'center',
+        alignItems: 'center',
     },
     header: {
         fontSize: 30,
-        fontWeight: "bold",
-        color: "#0456C7",
+        fontWeight: 'bold',
+        color: '#0456C7',
         marginBottom: 20,
     },
     label: {
         fontSize: 20,
-        fontWeight: "bold",
-        color: "#1D3557",
+        fontWeight: 'bold',
+        color: '#1D3557',
         alignSelf: 'flex-start',
         marginLeft: 45,
         marginTop: 20,
     },
     otpContainer: {
-        flexDirection: "row",
-        justifyContent: "space-between",
-        width: "70%",
+        flexDirection: 'row',
+        justifyContent: 'space-between',
+        width: '90%',
         marginTop: 15,
         marginBottom: 20,
     },
     otpInput: {
-        width: 50,
+        width: 42,
         height: 50,
         borderWidth: 1,
-        borderColor: "#ccc",
+        borderColor: '#ccc',
         borderRadius: 10,
-        textAlign: "center",
+        textAlign: 'center',
         fontSize: 18,
     },
     iconWrapper: {
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: 'center',
+        justifyContent: 'center',
         marginTop: 20,
         marginBottom: 20,
         borderColor: '#D9D9D9',
@@ -236,11 +268,11 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     continueButton: {
-        backgroundColor: "#0456C7",
+        backgroundColor: '#0456C7',
         padding: 15,
         borderRadius: 10,
-        alignItems: "center",
+        alignItems: 'center',
         marginTop: 20,
         width: '80%',
-    }
+    },
 });

@@ -53,7 +53,7 @@ export const validateName = (name: string, fieldName: string): ValidationResult 
 
 export const validatePhone = (phone: string): ValidationResult => {
   if (!phone) {
-    return { isValid: true, error: '' }; // Phone is optional
+    return { isValid: false, error: 'Phone number is required' };
   }
   if (!PHONE_REGEX.test(phone)) {
     return { isValid: false, error: 'Please enter a valid phone number (e.g., +94771234567)' };
@@ -75,8 +75,8 @@ export const validateOtp = (otp: string): ValidationResult => {
   if (!otp) {
     return { isValid: false, error: 'OTP is required' };
   }
-  if (!/^\d{5}$/.test(otp)) {
-    return { isValid: false, error: 'OTP must be 5 digits' };
+  if (!/^\d{6}$/.test(otp)) {
+    return { isValid: false, error: 'OTP must be 6 digits' };
   }
   return { isValid: true, error: '' };
 };

@@ -1,15 +1,16 @@
-import { COLORS } from "@/constants/ColorPallet";
-import api from "@/utils/api";
-import { useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity } from "react-native";
-import { Icon, TextInput } from "react-native-paper";
+import { logFailure } from '@/utils/logging';
+import { COLORS } from '@/constants/ColorPallet';
+import api from '@/utils/api';
+import { useState } from 'react';
+import { View, Text, StyleSheet, TouchableOpacity } from 'react-native';
+import { Icon, TextInput } from 'react-native-paper';
 import { ActivityIndicator } from 'react-native';
 import { validateEmail } from '@/utils/validation';
 
-export default function ForgotPasswordScreen({navigation}: any) {
-    const [email, setEmail] = useState("");
+export default function ForgotPasswordScreen({ navigation }: any) {
+    const [email, setEmail] = useState('');
     const [loading, setLoading] = useState(false);
-    const [error, setError] = useState("");
+    const [error, setError] = useState('');
 
     const handleForgotPassword = async () => {
         const validation = validateEmail(email);
@@ -20,15 +21,18 @@ export default function ForgotPasswordScreen({navigation}: any) {
 
         try {
             setLoading(true);
-            const response = await api.post('/users/forgot-password', { email });
-            console.log("Reset instructions sent:", response.data);
-            alert("Reset instructions have been sent to your email.");
+            await api.post('/users/forgot-password', { email });
+            alert(
+                'If this account exists, a reset code has been sent to its email.',
+            );
             navigation.navigate('ResetPasswordOtpVefication', {
-                email
+                email,
             });
         } catch (error) {
-            console.error("Forgot password error:", error);
-            alert("Failed to send reset instructions. Please check your email.");
+            logFailure('auth.forgot', error);
+            alert(
+                'Failed to send reset instructions. Please check your email.',
+            );
         } finally {
             setLoading(false);
         }
@@ -44,14 +48,14 @@ export default function ForgotPasswordScreen({navigation}: any) {
             <Text style={styles.subText}>
                 No worries. We'll send you reset instructions
             </Text>
-            
+
             <Text style={styles.label}>Email</Text>
             <TextInput
                 mode="flat"
                 value={email}
                 onChangeText={(text) => {
                     setEmail(text);
-                    setError("");
+                    setError('');
                 }}
                 placeholder="Enter your email"
                 style={[styles.input, error ? styles.inputError : null]}
@@ -60,8 +64,11 @@ export default function ForgotPasswordScreen({navigation}: any) {
             />
             {error ? <Text style={styles.errorText}>{error}</Text> : null}
 
-            <TouchableOpacity 
-                style={[styles.continueButton, loading && styles.disabledButton]} 
+            <TouchableOpacity
+                style={[
+                    styles.continueButton,
+                    loading && styles.disabledButton,
+                ]}
                 onPress={handleForgotPassword}
                 disabled={loading}
             >
@@ -70,15 +77,13 @@ export default function ForgotPasswordScreen({navigation}: any) {
                 </Text>
             </TouchableOpacity>
 
-            <TouchableOpacity 
-                style={styles.backButton} 
+            <TouchableOpacity
+                style={styles.backButton}
                 onPress={() => navigation.navigate('Login')}
             >
                 <View style={styles.backButtonContent}>
                     <Icon size={14} source="arrow-left" color="#706D6D" />
-                    <Text style={styles.backButtonText}>
-                        Back to Login
-                    </Text>
+                    <Text style={styles.backButtonText}>Back to Login</Text>
                 </View>
             </TouchableOpacity>
 
@@ -93,27 +98,27 @@ export default function ForgotPasswordScreen({navigation}: any) {
 
 const styles = StyleSheet.create({
     container: {
-        justifyContent: "center",
-        alignItems: "center",
+        justifyContent: 'center',
+        alignItems: 'center',
         padding: 20,
     },
     header: {
         fontSize: 30,
-        fontWeight: "bold",
-        color: "#0456C7",
+        fontWeight: 'bold',
+        color: '#0456C7',
         marginBottom: 10,
     },
     subText: {
         fontSize: 14,
-        fontWeight: "bold",
+        fontWeight: 'bold',
         color: COLORS.gray,
         marginBottom: 30,
-        textAlign: "center",
+        textAlign: 'center',
     },
     label: {
         fontSize: 20,
-        fontWeight: "bold",
-        color: "#1D3557",
+        fontWeight: 'bold',
+        color: '#1D3557',
         alignSelf: 'flex-start',
         marginLeft: 25,
     },
@@ -136,8 +141,8 @@ const styles = StyleSheet.create({
         marginLeft: 25,
     },
     iconWrapper: {
-        alignItems: "center",
-        justifyContent: "center",
+        alignItems: 'center',
+        justifyContent: 'center',
         marginBottom: 20,
         borderColor: '#D9D9D9',
         borderWidth: 1,
@@ -146,10 +151,10 @@ const styles = StyleSheet.create({
         borderRadius: 10,
     },
     continueButton: {
-        backgroundColor: "#0456C7",
+        backgroundColor: '#0456C7',
         padding: 15,
         borderRadius: 10,
-        alignItems: "center",
+        alignItems: 'center',
         marginTop: 20,
         width: '90%',
     },
@@ -157,9 +162,9 @@ const styles = StyleSheet.create({
         opacity: 0.7,
     },
     buttonText: {
-        color: "#fff",
+        color: '#fff',
         fontSize: 18,
-        fontWeight: "bold",
+        fontWeight: 'bold',
     },
     backButton: {
         marginTop: 25,
@@ -170,8 +175,8 @@ const styles = StyleSheet.create({
     },
     backButtonText: {
         fontSize: 14,
-        fontWeight: "bold",
-        color: "#706D6D",
+        fontWeight: 'bold',
+        color: '#706D6D',
         marginLeft: 5,
     },
     loadingOverlay: {

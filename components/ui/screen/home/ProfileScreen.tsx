@@ -1,42 +1,23 @@
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import {
-    View, Text, StyleSheet, Image, TouchableOpacity,
-    ActivityIndicator, ScrollView, TextInput, Alert,
-    Modal, SafeAreaView
+    View,
+    Text,
+    StyleSheet,
+    TouchableOpacity,
+    ActivityIndicator,
+    ScrollView,
+    TextInput,
+    Alert,
+    Modal,
+    SafeAreaView,
 } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import { useNavigation } from '@react-navigation/native';
-import { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from '@/app/(tabs)/navigation/stack-navigation/AppStackParamList';
-import api from '@/utils/api';
-import { useDispatch } from 'react-redux';
+import { useDispatch, useSelector } from 'react-redux';
+import { useIsFocused } from '@react-navigation/native';
+import type { RootState } from '@/store';
 import { logout } from '@/store/authSlice';
 import { Ionicons } from '@expo/vector-icons';
-
-type NavigationProp = NativeStackNavigationProp<RootStackParamList>;
-
-interface User {
-    _id?: string;
-    userId?: string;
-    firstName: string;
-    lastName: string;
-    username: string;
-    email: string;
-    isActive: boolean;
-    contact?: string;
-    language?: string;
-    boatId?: string;
-    avatar?: {
-        resourceUrl: string;
-    };
-}
-
-interface ApiResponse {
-    data: {
-        user: User;
-    };
-    success: boolean;
-}
+import { clearSession } from '@/utils/session';
+import useProfile from '@/utils/useProfile';
 
 // Function to generate avatar initials
 const getInitials = (firstName: string, lastName: string) => {
@@ -46,150 +27,46 @@ const getInitials = (firstName: string, lastName: string) => {
 // Function to generate a random pastel color based on name
 const getAvatarColor = (name: string) => {
     const colors = [
-        '#FFD1DC', '#FFABAB', '#FFC3A0', '#FF677D', 
-        '#D4A5A5', '#392F5A', '#31A2AC', '#61C0BF',
-        '#6B4226', '#8675A9', '#EFCFE3', '#B2E061'
+        '#FFD1DC',
+        '#FFABAB',
+        '#FFC3A0',
+        '#FF677D',
+        '#D4A5A5',
+        '#392F5A',
+        '#31A2AC',
+        '#61C0BF',
+        '#6B4226',
+        '#8675A9',
+        '#EFCFE3',
+        '#B2E061',
     ];
-    
+
     // Simple hash function
-    const hash = name.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+    const hash = name
+        .split('')
+        .reduce((acc, char) => acc + char.charCodeAt(0), 0);
     return colors[hash % colors.length];
 };
 
 const ProfileScreen: React.FC = () => {
-    const navigation = useNavigation<NavigationProp>();
-    const [user, setUser] = useState<User | null>(null);
-    const [formData, setFormData] = useState<Partial<User>>({});
-    const [loading, setLoading] = useState(true);
-    const [modalVisible, setModalVisible] = useState(false);
-    const [avatarColor, setAvatarColor] = useState('#61C0BF');
+    const userId = useSelector((state: RootState) => state.auth.userId);
+    const profile = useProfile(userId, useIsFocused());
+    const { user, loading } = profile;
+    const avatarColor = user
+        ? getAvatarColor(user.firstName + user.lastName)
+        : '#61C0BF';
     const dispatch = useDispatch();
-
-    useEffect(() => {
-        const checkToken = async () => {
-            const token = await AsyncStorage.getItem('token');
-            if (!token) {
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Welcome' }],
-                });
-            }
-        };
-        checkToken();
-    }, []);
-
-    const fetchProfile = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            if (!token) {
-                console.log('Token not found');
-                return;
-            }
-
-            const res = await api.get<ApiResponse>('users/profile', {
-                headers: { Authorization: `Bearer ${token}` },
-            });
-
-            const userData = res.data.data.user;
-            
-            console.log('Fetched user data:', userData); // Add logging for debugging
-            
-            setUser(userData);
-            
-            // Initialize formData with ALL user fields, ensuring they're properly typed
-            setFormData({
-                firstName: userData.firstName || '',
-                lastName: userData.lastName || '',
-                username: userData.username || '',
-                email: userData.email || '',
-                contact: userData.contact || '',
-                language: userData.language || '',
-                boatId: userData.boatId || ''
-            });
-            
-            // Set avatar color based on user name
-            if (userData.firstName && userData.lastName) {
-                setAvatarColor(getAvatarColor(userData.firstName + userData.lastName));
-            }
-        } catch (error) {
-            console.error('Error fetching profile:', error instanceof Error ? error.message : 'Unknown error');
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const handleSave = async () => {
-        try {
-            const token = await AsyncStorage.getItem('token');
-            if (!token) return;
-
-            console.log('Submitting form data:', formData); // Add logging to confirm what's being sent
-
-            const res = await api.put<ApiResponse>(
-                'users/update-profile',
-                formData,
-                {
-                    headers: { Authorization: `Bearer ${token}` },
-                }
-            );
-
-            setUser(res.data.data.user);
-            
-            // Update formData with the returned user data to keep them in sync
-            setFormData({
-                firstName: res.data.data.user.firstName || '',
-                lastName: res.data.data.user.lastName || '',  
-                username: res.data.data.user.username || '',
-                email: res.data.data.user.email || '',
-                contact: res.data.data.user.contact || '',
-                language: res.data.data.user.language || '',
-                boatId: res.data.data.user.boatId || ''
-            });
-            
-            setModalVisible(false);
-            Alert.alert('Success', 'Profile updated successfully!');
-        } catch (error) {
-            console.error('Error updating profile:', error instanceof Error ? error.message : 'Unknown error');
-            Alert.alert('Error', 'Failed to update profile. Please try again.');
-        }
-    };
 
     const handleLogout = async () => {
         try {
-            await AsyncStorage.multiRemove(['token', 'user', 'userId', 'username']);
+            await clearSession();
             dispatch(logout());
-            // No need to navigate - the App component will handle navigation based on auth state
-        } catch (error) {
-            console.error('Error during logout:', error);
+        } catch {
             Alert.alert('Error', 'Failed to logout. Please try again.');
         }
     };
 
-    useEffect(() => {
-        fetchProfile();
-    }, []);
-
-    const handleChange = (field: keyof User, value: string) => {
-        setFormData(prev => ({ ...prev, [field]: value }));
-    };
-
-    // When modal is opened, ensure formData is synced with current user data
-    const handleOpenModal = () => {
-        if (user) {
-            setFormData({
-                firstName: user.firstName || '',
-                lastName: user.lastName || '',
-                username: user.username || '',
-                email: user.email || '',
-                contact: user.contact || '',
-                language: user.language || '',
-                boatId: user.boatId || ''
-            });
-        }
-        setModalVisible(true);
-    };
-
-    if (loading) {
+    if (loading && !user) {
         return (
             <View style={styles.centered}>
                 <ActivityIndicator size="large" color="#0080ff" />
@@ -200,10 +77,12 @@ const ProfileScreen: React.FC = () => {
     if (!user) {
         return (
             <View style={styles.centered}>
-                <Text style={styles.errorText}>Could not load user profile.</Text>
-                <TouchableOpacity 
-                    style={styles.retryButton} 
-                    onPress={fetchProfile}
+                <Text style={styles.errorText}>
+                    {profile.error || 'Could not load user profile.'}
+                </Text>
+                <TouchableOpacity
+                    style={styles.retryButton}
+                    onPress={profile.reload}
                 >
                     <Text style={styles.retryButtonText}>Retry</Text>
                 </TouchableOpacity>
@@ -214,73 +93,129 @@ const ProfileScreen: React.FC = () => {
     return (
         <SafeAreaView style={styles.safeArea}>
             <ScrollView contentContainerStyle={styles.container}>
+                {profile.notice && (
+                    <Text accessibilityLiveRegion="polite">
+                        {profile.notice}
+                    </Text>
+                )}
+                {profile.error && !profile.editing && (
+                    <View>
+                        <Text style={styles.errorText}>{profile.error}</Text>
+                        <TouchableOpacity
+                            onPress={profile.reload}
+                            disabled={loading}
+                            accessibilityRole="button"
+                        >
+                            <Text>Reload saved profile</Text>
+                        </TouchableOpacity>
+                    </View>
+                )}
+                {loading && (
+                    <ActivityIndicator accessibilityLabel="Refreshing saved profile" />
+                )}
                 {/* Cover Image */}
                 <View style={styles.coverContainer}>
                     <View style={styles.coverImage} />
                 </View>
-                
+
                 {/* Profile Info Section */}
                 <View style={styles.profileSection}>
                     {/* Avatar */}
                     <View style={styles.avatarContainer}>
-                        {user.avatar?.resourceUrl ? (
-                            <Image
-                                source={{ uri: user.avatar.resourceUrl }}
-                                style={styles.avatar}
-                            />
-                        ) : (
-                            <View style={[styles.avatar, { backgroundColor: avatarColor }]}>
-                                <Text style={styles.avatarText}>
-                                    {getInitials(user.firstName, user.lastName)}
-                                </Text>
-                            </View>
-                        )}
-                    </View>
-                    
-                    {/* User Info */}
-                    <View style={styles.userInfo}>
-                        <Text style={styles.name}>{user.firstName} {user.lastName}</Text>
-                        <Text style={styles.username}>@{user.username}</Text>
-                        <View style={styles.statusBadge}>
-                            <View style={[styles.statusIndicator, { backgroundColor: user.isActive ? '#4CAF50' : '#F44336' }]} />
-                            <Text style={styles.statusText}>{user.isActive ? 'Active' : 'Inactive'}</Text>
+                        <View
+                            style={[
+                                styles.avatar,
+                                { backgroundColor: avatarColor },
+                            ]}
+                        >
+                            <Text style={styles.avatarText}>
+                                {getInitials(user.firstName, user.lastName)}
+                            </Text>
                         </View>
                     </View>
-                    
+
+                    {/* User Info */}
+                    <View style={styles.userInfo}>
+                        <Text style={styles.name}>
+                            {user.firstName} {user.lastName}
+                        </Text>
+                        <Text style={styles.username}>@{user.username}</Text>
+                        <View style={styles.statusBadge}>
+                            <View
+                                style={[
+                                    styles.statusIndicator,
+                                    {
+                                        backgroundColor: user.isActive
+                                            ? '#4CAF50'
+                                            : '#F44336',
+                                    },
+                                ]}
+                            />
+                            <Text style={styles.statusText}>
+                                {user.isActive ? 'Active' : 'Inactive'}
+                            </Text>
+                        </View>
+                    </View>
+
                     {/* Edit Button */}
-                    <TouchableOpacity 
+                    <TouchableOpacity
                         style={styles.editButton}
-                        onPress={handleOpenModal}
+                        onPress={profile.openEditor}
                     >
                         <Ionicons name="pencil" size={16} color="#fff" />
                         <Text style={styles.editButtonText}>Edit Profile</Text>
                     </TouchableOpacity>
                 </View>
-                
+
                 {/* Profile Details Section */}
                 <View style={styles.detailsSection}>
                     <Text style={styles.sectionTitle}>Contact Information</Text>
-                    
+
                     <View style={styles.detailItem}>
                         <Ionicons name="mail-outline" size={20} color="#555" />
                         <Text style={styles.detailText}>{user.email}</Text>
                     </View>
-                    
+
                     {user.contact && (
                         <View style={styles.detailItem}>
-                            <Ionicons name="call-outline" size={20} color="#555" />
-                            <Text style={styles.detailText}>{user.contact}</Text>
+                            <Ionicons
+                                name="call-outline"
+                                size={20}
+                                color="#555"
+                            />
+                            <Text style={styles.detailText}>
+                                {user.contact}
+                            </Text>
                         </View>
                     )}
-                    
+
+                    {user.boatId && (
+                        <View style={styles.detailItem}>
+                            <Ionicons
+                                name="boat-outline"
+                                size={20}
+                                color="#555"
+                            />
+                            <Text style={styles.detailText}>
+                                Boat ID: {user.boatId}
+                            </Text>
+                        </View>
+                    )}
+
                     {user.language && (
                         <View style={styles.detailItem}>
-                            <Ionicons name="language-outline" size={20} color="#555" />
-                            <Text style={styles.detailText}>{user.language}</Text>
+                            <Ionicons
+                                name="language-outline"
+                                size={20}
+                                color="#555"
+                            />
+                            <Text style={styles.detailText}>
+                                {user.language}
+                            </Text>
                         </View>
                     )}
                 </View>
-                
+
                 {/* Logout Button */}
                 <TouchableOpacity
                     style={styles.logoutButton}
@@ -290,91 +225,154 @@ const ProfileScreen: React.FC = () => {
                     <Text style={styles.logoutButtonText}>Logout</Text>
                 </TouchableOpacity>
             </ScrollView>
-            
+
             {/* Edit Profile Modal */}
             <Modal
                 animationType="slide"
                 transparent={true}
-                visible={modalVisible}
-                onRequestClose={() => setModalVisible(false)}
+                visible={profile.editing}
+                onRequestClose={profile.closeEditor}
             >
                 <View style={styles.modalOverlay}>
                     <View style={styles.modalContent}>
                         <View style={styles.modalHeader}>
                             <Text style={styles.modalTitle}>Edit Profile</Text>
-                            <TouchableOpacity 
-                                onPress={() => setModalVisible(false)}
+                            <TouchableOpacity
+                                onPress={profile.closeEditor}
+                                disabled={profile.saving}
                                 style={styles.closeButton}
                             >
                                 <Ionicons name="close" size={24} color="#333" />
                             </TouchableOpacity>
                         </View>
-                        
+
+                        {profile.error && (
+                            <View>
+                                <Text
+                                    style={styles.errorText}
+                                    accessibilityLiveRegion="polite"
+                                >
+                                    {profile.error}
+                                </Text>
+                                <TouchableOpacity
+                                    onPress={profile.discardAndReload}
+                                    disabled={profile.saving}
+                                    accessibilityRole="button"
+                                >
+                                    <Text>
+                                        Discard edits and reload saved profile
+                                    </Text>
+                                </TouchableOpacity>
+                            </View>
+                        )}
                         <ScrollView style={styles.modalBody}>
                             <Text style={styles.inputLabel}>First Name</Text>
                             <TextInput
                                 style={styles.input}
-                                value={formData.firstName}
-                                onChangeText={text => handleChange('firstName', text)}
+                                value={profile.draft.firstName}
+                                maxLength={100}
+                                editable={!profile.saving}
+                                onChangeText={(text) =>
+                                    profile.change('firstName', text)
+                                }
                                 placeholder="First Name"
                             />
-                            
+
                             <Text style={styles.inputLabel}>Last Name</Text>
                             <TextInput
                                 style={styles.input}
-                                value={formData.lastName}
-                                onChangeText={text => handleChange('lastName', text)}
+                                value={profile.draft.lastName}
+                                maxLength={100}
+                                editable={!profile.saving}
+                                onChangeText={(text) =>
+                                    profile.change('lastName', text)
+                                }
                                 placeholder="Last Name"
                             />
-                            
-                            <Text style={styles.inputLabel}>Username (cannot be changed)</Text>
+
+                            <Text style={styles.inputLabel}>
+                                Username (cannot be changed)
+                            </Text>
                             <TextInput
                                 style={[styles.input, styles.disabledInput]}
-                                value={formData.username}
+                                value={user.username}
                                 editable={false}
                                 placeholder="Username"
                             />
-                            
-                            <Text style={styles.inputLabel}>Email</Text>
+
+                            <Text style={styles.inputLabel}>
+                                Email (cannot be changed here)
+                            </Text>
                             <TextInput
-                                style={styles.input}
-                                value={formData.email}
-                                onChangeText={text => handleChange('email', text)}
+                                style={[styles.input, styles.disabledInput]}
+                                value={user.email}
+                                editable={false}
                                 placeholder="Email"
                                 keyboardType="email-address"
                             />
-                            
-                            <Text style={styles.inputLabel}>Contact (optional)</Text>
+
+                            <Text style={styles.inputLabel}>Contact</Text>
                             <TextInput
                                 style={styles.input}
-                                value={formData.contact}
-                                onChangeText={text => handleChange('contact', text)}
+                                value={profile.draft.contact}
+                                maxLength={100}
+                                editable={!profile.saving}
+                                onChangeText={(text) =>
+                                    profile.change('contact', text)
+                                }
                                 placeholder="Phone Number"
                                 keyboardType="phone-pad"
                             />
-                            
-                            <Text style={styles.inputLabel}>Language (optional)</Text>
+
+                            <Text style={styles.inputLabel}>
+                                Language (Sinhala or Tamil)
+                            </Text>
                             <TextInput
                                 style={styles.input}
-                                value={formData.language}
-                                onChangeText={text => handleChange('language', text)}
+                                value={profile.draft.language}
+                                maxLength={100}
+                                editable={!profile.saving}
+                                onChangeText={(text) =>
+                                    profile.change('language', text)
+                                }
                                 placeholder="Preferred Language"
                             />
+                            <Text style={styles.inputLabel}>
+                                Boat ID (optional)
+                            </Text>
+                            <TextInput
+                                style={styles.input}
+                                value={profile.draft.boatId}
+                                maxLength={100}
+                                editable={!profile.saving}
+                                onChangeText={(text) =>
+                                    profile.change('boatId', text)
+                                }
+                                placeholder="Boat ID"
+                            />
                         </ScrollView>
-                        
+
                         <View style={styles.modalFooter}>
-                            <TouchableOpacity 
+                            <TouchableOpacity
                                 style={styles.cancelButton}
-                                onPress={() => setModalVisible(false)}
+                                onPress={profile.closeEditor}
+                                disabled={profile.saving}
                             >
-                                <Text style={styles.cancelButtonText}>Cancel</Text>
+                                <Text style={styles.cancelButtonText}>
+                                    Cancel
+                                </Text>
                             </TouchableOpacity>
-                            
-                            <TouchableOpacity 
+
+                            <TouchableOpacity
                                 style={styles.saveButton}
-                                onPress={handleSave}
+                                onPress={profile.save}
+                                disabled={profile.saving}
                             >
-                                <Text style={styles.saveButtonText}>Save Changes</Text>
+                                <Text style={styles.saveButtonText}>
+                                    {profile.saving
+                                        ? 'Saving...'
+                                        : 'Save Changes'}
+                                </Text>
                             </TouchableOpacity>
                         </View>
                     </View>
@@ -389,7 +387,7 @@ export default ProfileScreen;
 const styles = StyleSheet.create({
     safeArea: {
         flex: 1,
-        backgroundColor: '#f8f8f8'
+        backgroundColor: '#f8f8f8',
     },
     container: {
         flexGrow: 1,
@@ -398,17 +396,17 @@ const styles = StyleSheet.create({
         flex: 1,
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        padding: 20,
     },
     coverContainer: {
         height: 120,
         width: '100%',
-        position: 'relative'
+        position: 'relative',
     },
     coverImage: {
         flex: 1,
         backgroundColor: '#355C7D',
-        width: '100%'
+        width: '100%',
     },
     profileSection: {
         backgroundColor: '#fff',
@@ -439,26 +437,26 @@ const styles = StyleSheet.create({
         borderWidth: 3,
         borderColor: '#fff',
         justifyContent: 'center',
-        alignItems: 'center'
+        alignItems: 'center',
     },
     avatarText: {
         fontSize: 24,
         fontWeight: 'bold',
-        color: '#fff'
+        color: '#fff',
     },
     userInfo: {
         alignItems: 'center',
-        marginBottom: 15
+        marginBottom: 15,
     },
     name: {
         fontSize: 22,
         fontWeight: 'bold',
-        color: '#333'
+        color: '#333',
     },
     username: {
         fontSize: 16,
         color: '#666',
-        marginTop: 2
+        marginTop: 2,
     },
     statusBadge: {
         flexDirection: 'row',
@@ -467,17 +465,17 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 10,
         paddingVertical: 4,
-        marginTop: 8
+        marginTop: 8,
     },
     statusIndicator: {
         width: 8,
         height: 8,
         borderRadius: 4,
-        marginRight: 6
+        marginRight: 6,
     },
     statusText: {
         fontSize: 14,
-        color: '#555'
+        color: '#555',
     },
     editButton: {
         flexDirection: 'row',
@@ -486,13 +484,13 @@ const styles = StyleSheet.create({
         borderRadius: 20,
         paddingHorizontal: 20,
         paddingVertical: 8,
-        justifyContent: 'center'
+        justifyContent: 'center',
     },
     editButtonText: {
         color: '#fff',
         fontSize: 14,
         fontWeight: '500',
-        marginLeft: 6
+        marginLeft: 6,
     },
     detailsSection: {
         backgroundColor: '#fff',
@@ -509,17 +507,17 @@ const styles = StyleSheet.create({
         fontSize: 18,
         fontWeight: '600',
         color: '#333',
-        marginBottom: 15
+        marginBottom: 15,
     },
     detailItem: {
         flexDirection: 'row',
         alignItems: 'center',
-        marginBottom: 12
+        marginBottom: 12,
     },
     detailText: {
         fontSize: 16,
         color: '#444',
-        marginLeft: 10
+        marginLeft: 10,
     },
     logoutButton: {
         flexDirection: 'row',
@@ -530,20 +528,20 @@ const styles = StyleSheet.create({
         justifyContent: 'center',
         alignItems: 'center',
         margin: 16,
-        marginTop: 0
+        marginTop: 0,
     },
     logoutButtonText: {
         color: '#fff',
         fontSize: 16,
         fontWeight: '500',
-        marginLeft: 8
+        marginLeft: 8,
     },
     modalOverlay: {
         flex: 1,
         backgroundColor: 'rgba(0,0,0,0.5)',
         justifyContent: 'center',
         alignItems: 'center',
-        padding: 20
+        padding: 20,
     },
     modalContent: {
         backgroundColor: '#fff',
@@ -562,31 +560,31 @@ const styles = StyleSheet.create({
         alignItems: 'center',
         borderBottomWidth: 1,
         borderBottomColor: '#eee',
-        padding: 16
+        padding: 16,
     },
     modalTitle: {
         fontSize: 18,
         fontWeight: '600',
-        color: '#333'
+        color: '#333',
     },
     closeButton: {
-        padding: 4
+        padding: 4,
     },
     modalBody: {
         padding: 16,
-        maxHeight: 400
+        maxHeight: 400,
     },
     modalFooter: {
         flexDirection: 'row',
         justifyContent: 'flex-end',
         borderTopWidth: 1,
         borderTopColor: '#eee',
-        padding: 16
+        padding: 16,
     },
     inputLabel: {
         fontSize: 14,
         color: '#555',
-        marginBottom: 6
+        marginBottom: 6,
     },
     input: {
         backgroundColor: '#f5f5f5',
@@ -596,7 +594,7 @@ const styles = StyleSheet.create({
         color: '#333',
         marginBottom: 16,
         borderWidth: 1,
-        borderColor: '#e0e0e0'
+        borderColor: '#e0e0e0',
     },
     disabledInput: {
         backgroundColor: '#e9e9e9',
@@ -608,12 +606,12 @@ const styles = StyleSheet.create({
         paddingVertical: 10,
         paddingHorizontal: 20,
         alignItems: 'center',
-        justifyContent: 'center'
+        justifyContent: 'center',
     },
     saveButtonText: {
         color: '#fff',
         fontSize: 16,
-        fontWeight: '500'
+        fontWeight: '500',
     },
     cancelButton: {
         borderRadius: 6,
@@ -621,26 +619,26 @@ const styles = StyleSheet.create({
         paddingHorizontal: 20,
         alignItems: 'center',
         justifyContent: 'center',
-        marginRight: 10
+        marginRight: 10,
     },
     cancelButtonText: {
         color: '#666',
-        fontSize: 16
+        fontSize: 16,
     },
     errorText: {
         fontSize: 16,
         color: '#666',
         marginBottom: 20,
-        textAlign: 'center'
+        textAlign: 'center',
     },
     retryButton: {
         backgroundColor: '#0080ff',
         paddingVertical: 10,
         paddingHorizontal: 20,
-        borderRadius: 6
+        borderRadius: 6,
     },
     retryButtonText: {
         color: '#fff',
-        fontWeight: '500'
-    }
+        fontWeight: '500',
+    },
 });

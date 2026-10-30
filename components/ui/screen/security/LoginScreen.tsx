@@ -1,300 +1,102 @@
-import { COLORS } from "@/constants/ColorPallet";
-import { useEffect, useState } from "react";
-import { View, Text, StyleSheet, TouchableOpacity, Alert, ActivityIndicator } from "react-native";
-import { Icon, TextInput } from "react-native-paper";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useState } from 'react';
+import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { useDispatch } from 'react-redux';
+import ActionButton from '@/components/ui/ActionButton';
+import StatusBanner from '@/components/ui/StatusBanner';
+import AuthField from '@/components/ui/screen/security/AuthField';
+import AuthLayout from '@/components/ui/screen/security/AuthLayout';
+import { theme } from '@/constants/theme';
 import { setUserId } from '@/store/authSlice';
 import api from '@/utils/api';
-import { validateEmail, validatePassword, validateFields } from '@/utils/validation';
+import { saveSession } from '@/utils/session';
+import { validateEmail, validateFields, validatePassword } from '@/utils/validation';
 
 export default function LoginScreen({ navigation }: any) {
-    const [email, setEmail] = useState('');
-    const [password, setPassword] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [initialChecking, setInitialChecking] = useState(true);
-    const [errors, setErrors] = useState({ email: '', password: '' });
-    const dispatch = useDispatch();
+  const [email, setEmail] = useState('');
+  const [password, setPassword] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [errors, setErrors] = useState({ email: '', password: '' });
+  const dispatch = useDispatch();
 
-    useEffect(() => {
-        const checkToken = async () => {
-            try {
-                const token = await AsyncStorage.getItem('token');
-                const userId = await AsyncStorage.getItem('userId');
-                
-                if (token && userId) {
-                    console.log('Token found, navigating to Process screen');
-                    dispatch(setUserId(userId)); // This will now set isAuthenticated to true
-                    navigation.reset({
-                        index: 0,
-                        routes: [{ name: 'Process' }],
-                    });
-                }
-            } catch (error) {
-                console.error('Error checking authentication status:', error);
-            } finally {
-                setInitialChecking(false);
-            }
-        };
-        
-        checkToken();
-    }, [dispatch, navigation]);
+  const validateInputs = () => {
+    const emailValidation = validateEmail(email.trim());
+    const passwordValidation = validatePassword(password);
+    setErrors({ email: emailValidation.error, password: passwordValidation.error });
+    return validateFields([emailValidation, passwordValidation]).isValid;
+  };
 
-    const validateInputs = () => {
-        const emailValidation = validateEmail(email);
-        const passwordValidation = validatePassword(password);
-
-        setErrors({
-            email: emailValidation.error,
-            password: passwordValidation.error
-        });
-
-        const validation = validateFields([emailValidation, passwordValidation]);
-        return validation.isValid;
-    };
-
-    const handleLogin = async () => {
-        if (!validateInputs()) return;
-        
-        try {
-            setLoading(true);
-            const response = await api.post('users/login', { email, password });
-            console.log('Login response:', response.data);
-
-            const { data } = response.data;
-
-            if (!data || !data.user || !data.token) {
-                throw new Error('Invalid response structure from server');
-            }
-
-            const { user, token } = data;
-
-            if (!user.isActive) {
-                navigation.navigate('VerifyOtp', { 
-                    username: user.username, 
-                    email: user.email 
-                });
-                await AsyncStorage.setItem('tempToken', token);
-            } else {
-                await AsyncStorage.multiSet([
-                    ['token', token],
-                    ['userId', user.userId.toString()],
-                    ['username', user.username],
-                    ['user', JSON.stringify(user)]
-                ]);
-
-                dispatch(setUserId(user.userId.toString())); // This will now set isAuthenticated to true
-
-                navigation.reset({
-                    index: 0,
-                    routes: [{ name: 'Process' }],
-                });
-            }
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Login failed. Please check your credentials.';
-            Alert.alert('Login Error', errorMessage);
-            console.error('Login error:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-   
-    if (initialChecking) {
-        return (
-            <View style={styles.centered}>
-                <ActivityIndicator size="large" color={COLORS.primary} />
-                <Text>Checking login status...</Text>
-            </View>
-        );
+  const handleLogin = async () => {
+    if (loading || !validateInputs()) return;
+    setRequestError('');
+    try {
+      setLoading(true);
+      const response = await api.post('users/login', { email: email.trim(), password });
+      const { data } = response.data;
+      if (!data?.user) throw new Error('Invalid response structure from server');
+      const { user, token } = data;
+      if (data.requiresVerification) {
+        navigation.navigate('VerifyOtp', { username: user.username, email: user.email });
+      } else {
+        if (!token) throw new Error('Missing access token');
+        await saveSession(token, user);
+        dispatch(setUserId(user.userId.toString()));
+      }
+    } catch (error: any) {
+      setRequestError(error.response?.data?.message || 'Sign in failed. Check your details and try again.');
+    } finally {
+      setLoading(false);
     }
+  };
 
-    return (
-        <View style={styles.container}>
-            <View style={styles.headerPanel}>
-                <Text style={styles.headerPanelText}>Fish smart</Text>
-                <Text style={styles.headerPanelText}>Navigate right....</Text>
-                <View style={styles.line} />
-            </View>
-
-            <View style={styles.headerElement}>
-                {[
-                    { icon: "weather-lightning-rainy", label: "Weather" },
-                    { icon: "phone-alert-outline", label: "Emergency" },
-                    { icon: "shield-alert-outline", label: "Safety Tips" },
-                ].map((item, index) => (
-                    <View key={index} style={styles.headerElements}>
-                        <Icon size={50} source={item.icon} color="#0456C7" />
-                        <Text style={styles.headerElementLabel}>{item.label}</Text>
-                    </View>
-                ))}
-            </View>
-
-            <View style={styles.formcontainer}>
-                <Text style={styles.label}>Email</Text>
-                <TextInput
-                    mode="flat"
-                    value={email}
-                    onChangeText={(text) => {
-                        setEmail(text);
-                        if (errors.email) {
-                            setErrors(prev => ({ ...prev, email: '' }));
-                        }
-                    }}
-                    placeholder="Enter Email"
-                    style={[styles.input, errors.email ? styles.inputError : null]}
-                    keyboardType="email-address"
-                    autoCapitalize="none"
-                />
-                {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-
-                <Text style={styles.label}>Password</Text>
-                <TextInput
-                    mode="flat"
-                    value={password}
-                    onChangeText={(text) => {
-                        setPassword(text);
-                        if (errors.password) {
-                            setErrors(prev => ({ ...prev, password: '' }));
-                        }
-                    }}
-                    placeholder="Enter your password"
-                    style={[styles.input, errors.password ? styles.inputError : null]}
-                    secureTextEntry
-                />
-                {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-
-                <TouchableOpacity onPress={() => navigation.navigate('ForgotPassword')}>
-                    <Text style={styles.forgotText}>Forgot Password?</Text>
-                </TouchableOpacity>
-
-                <TouchableOpacity style={styles.signInButton} onPress={handleLogin}>
-                    <Text style={styles.signInButtonText}>Sign in</Text>
-                </TouchableOpacity>
-
-                <View style={styles.signupContainer}>
-                    <Text style={styles.signupText}>
-                        Don't have an account?
-                        <TouchableOpacity onPress={() => navigation.navigate('Signup')}>
-                            <Text style={styles.signupLink}> Sign up</Text>
-                        </TouchableOpacity>
-                    </Text>
-                </View>
-            </View>
-        </View>
-    );
+  return (
+    <AuthLayout eyebrow="Account access" title="Welcome back" description="Sign in to view your routes, conditions, and messages.">
+      <Text style={styles.sectionTitle}>Sign in</Text>
+      <Text style={styles.sectionDescription}>Enter the email and password for your OceanPulse account.</Text>
+      {!!requestError && <StatusBanner tone="error" title="Could not sign in" message={requestError} style={styles.banner} />}
+      <View style={styles.fields}>
+        <AuthField
+          label="Email address"
+          value={email}
+          onChangeText={(value) => { setEmail(value); setErrors((prev) => ({ ...prev, email: '' })); }}
+          error={errors.email}
+          placeholder="you@example.com"
+          keyboardType="email-address"
+          autoCapitalize="none"
+          autoComplete="email"
+          textContentType="emailAddress"
+        />
+        <AuthField
+          label="Password"
+          value={password}
+          onChangeText={(value) => { setPassword(value); setErrors((prev) => ({ ...prev, password: '' })); }}
+          error={errors.password}
+          placeholder="Enter your password"
+          secureTextEntry
+          autoComplete="current-password"
+          textContentType="password"
+        />
+      </View>
+      <Pressable onPress={() => navigation.navigate('ForgotPassword')} accessibilityRole="button" style={styles.forgotButton}>
+        <Text style={styles.link}>Forgot password?</Text>
+      </Pressable>
+      <ActionButton label="Sign in" onPress={handleLogin} loading={loading} style={styles.submit} />
+      <View style={styles.divider} />
+      <Text style={styles.switchPrompt}>New to OceanPulse?</Text>
+      <ActionButton label="Create an account" variant="secondary" onPress={() => navigation.navigate('Signup')} style={styles.switchButton} />
+    </AuthLayout>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        alignItems: "center",
-        backgroundColor: "#fff",
-    },
-    centered: {
-        justifyContent: 'center',
-        alignItems: 'center',
-    },
-    headerPanel: {
-        width: "100%",
-        height: 200,
-        backgroundColor: "#0456C7",
-        paddingTop: 50,
-    },
-    headerPanelText: {
-        fontSize: 30,
-        fontWeight: "bold",
-        color: "#fff",
-        paddingLeft: 20,
-    },
-    line: {
-        height: 1,
-        backgroundColor: "#ccc",
-        width: "90%",
-        alignSelf: "center",
-        marginVertical: 20,
-    },
-    headerElement: {
-        flexDirection: "row",
-        justifyContent: "space-around",
-        width: "100%",
-        marginTop: -30,
-    },
-    headerElements: {
-        backgroundColor: "#fff",
-        borderRadius: 10,
-        width: 100,
-        height: 100,
-        justifyContent: "center",
-        alignItems: "center",
-        shadowColor: "#000",
-        shadowOffset: { width: 0, height: 2 },
-        shadowOpacity: 0.25,
-        shadowRadius: 3.84,
-        elevation: 8,
-    },
-    headerElementLabel: {
-        marginTop: 8,
-        fontSize: 16,
-        fontWeight: "bold",
-        color: "#0456C7",
-        textAlign: "center",
-    },
-    formcontainer: {
-        padding: 20,
-        width: '95%',
-        marginTop: 20,
-    },
-    label: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#1D3557",
-    },
-    input: {
-        backgroundColor: '',
-        marginBottom: 20,
-    },
-    inputError: {
-        borderColor: COLORS.primary,
-        borderWidth: 1,
-    },
-    errorText: {
-        color: COLORS.primary,
-        fontSize: 12,
-        marginTop: -15,
-        marginBottom: 15,
-    },
-    forgotText: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#0456C7",
-        alignSelf: "flex-end",
-        marginTop: -10,
-    },
-    signInButton: {
-        backgroundColor: "#0456C7",
-        padding: 15,
-        borderRadius: 10,
-        alignItems: "center",
-        marginTop: 20,
-    },
-    signInButtonText: {
-        color: "#fff",
-        fontSize: 18,
-        fontWeight: "bold",
-    },
-    signupContainer: {
-        marginTop: 20,
-        alignItems: "center",
-    },
-    signupText: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: COLORS.gray,
-    },
-    signupLink: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#0456C7",
-    },
+  sectionTitle: { color: theme.colors.text, fontSize: 22, fontWeight: '800' },
+  sectionDescription: { color: theme.colors.mutedText, fontSize: theme.type.caption, marginTop: theme.spacing.xs },
+  banner: { marginTop: theme.spacing.md },
+  fields: { marginTop: theme.spacing.lg },
+  forgotButton: { minHeight: theme.touchTarget, alignSelf: 'flex-end', justifyContent: 'center', marginTop: -theme.spacing.sm },
+  link: { color: theme.colors.accent, fontSize: theme.type.caption, fontWeight: '700' },
+  submit: { marginTop: theme.spacing.md },
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.lg },
+  switchPrompt: { color: theme.colors.mutedText, fontSize: theme.type.caption, textAlign: 'center' },
+  switchButton: { marginTop: theme.spacing.sm },
 });

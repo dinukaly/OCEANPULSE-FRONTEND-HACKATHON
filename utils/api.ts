@@ -1,9 +1,13 @@
 import axios from 'axios';
-import AsyncStorage from '@react-native-async-storage/async-storage';
-import getBaseUrl from '@/constants/BASEURL';
+import getBaseUrl, { assertApiConfigured } from '@/constants/BASEURL';
+import { clearSession, getToken } from '@/utils/session';
+import store from '@/store';
+import { logout } from '@/store/authSlice';
+import { logFailure } from './logging';
 
 const api = axios.create({
   baseURL: getBaseUrl(),
+  timeout: 15000,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -12,21 +16,22 @@ const api = axios.create({
 // Request interceptor
 api.interceptors.request.use(
   async (config) => {
+    assertApiConfigured();
     try {
-      const token = await AsyncStorage.getItem('token');
+      const token = await getToken();
       if (token) {
         // Properly format the Bearer token
         config.headers.Authorization = `Bearer ${token}`;
       }
       return config;
     } catch (error) {
-      console.error('Error setting auth token:', error);
-      return config;
+      logFailure('session.read', error);
+      throw new Error('Could not read your saved session. Please retry.');
     }
   },
   (error) => {
     return Promise.reject(error);
-  }
+  },
 );
 
 // Response interceptor
@@ -36,13 +41,15 @@ api.interceptors.response.use(
     if (error.response?.status === 401) {
       // Clear auth data on 401 responses
       try {
-        await AsyncStorage.multiRemove(['token', 'userId', 'username', 'user']);
+        await clearSession();
       } catch (e) {
-        console.error('Error clearing auth data:', e);
+        logFailure('session.clear', e);
+      } finally {
+        store.dispatch(logout());
       }
     }
     return Promise.reject(error);
-  }
+  },
 );
 
 export default api;

@@ -1,29 +1,81 @@
-import React from 'react';
-import { View, Text, Modal, StyleSheet, TouchableOpacity } from 'react-native';
+import React, { useState } from 'react';
+import {
+  View,
+  Text,
+  TextInput,
+  Modal,
+  StyleSheet,
+  TouchableOpacity,
+} from 'react-native';
 import { FontAwesome } from '@expo/vector-icons';
+import { estimateFuelLitres, parseFuelRate } from '@/utils/routeEstimate';
 
-const FuelEstimateModal = ({ visible, onClose, distance, fuelRate }:any) => {
-  const fuelNeeded = (distance * fuelRate).toFixed(3); // e.g. 0.5 L/nm
+type FuelEstimateModalProps = {
+  visible: boolean;
+  onClose: () => void;
+  distance: number | null;
+};
+
+export default function FuelEstimateModal({
+  visible,
+  onClose,
+  distance,
+}: FuelEstimateModalProps) {
+  const [fuelRate, setFuelRate] = useState('');
+  const rate = parseFuelRate(fuelRate);
+  const fuelNeeded = estimateFuelLitres(distance, rate);
+  const validDistance =
+    typeof distance === 'number' && Number.isFinite(distance) && distance >= 0;
+  const formatAmount = (value: number) =>
+    value > 0 && value < 0.01 ? '<0.01' : value.toFixed(2);
 
   return (
     <Modal
       visible={visible}
       transparent
       animationType="fade"
+      onRequestClose={onClose}
     >
       <View style={styles.overlay}>
         <View style={styles.modal}>
-          <Text style={styles.distanceText}>{distance} nm To sail you need</Text>
-          <View style={styles.fuelRow}>
-            <FontAwesome name="truck" size={28} color="black" />
-            <Text style={styles.fuelText}>  {fuelNeeded} Liters</Text>
-          </View>
-          <Text style={styles.noteText}>
-            (Figures appearing are roughly calculated)
+          <Text style={styles.distanceText}>
+            {validDistance
+              ? `Approximate direct distance: ${formatAmount(distance)} nm (one way)`
+              : 'Distance unavailable'}
           </Text>
-
+          <Text>
+            Enter your boat's measured fuel use in litres per nautical mile.
+          </Text>
+          <TextInput
+            value={fuelRate}
+            onChangeText={setFuelRate}
+            keyboardType="decimal-pad"
+            accessibilityLabel="Fuel rate in litres per nautical mile"
+            placeholder="Fuel rate (L/nm)"
+            maxLength={12}
+            style={styles.rateInput}
+          />
+          <View style={styles.fuelRow}>
+            <FontAwesome name="tint" size={28} color="black" />
+            <Text style={styles.fuelText} accessibilityLiveRegion="polite">
+              {fuelNeeded === null
+                ? 'Fuel estimate unavailable'
+                : `Estimated fuel: ${formatAmount(fuelNeeded)} L`}
+            </Text>
+          </View>
+          {fuelRate.trim() && rate === null && (
+            <Text>Enter a positive decimal fuel rate.</Text>
+          )}
+          <Text style={styles.noteText}>
+            Direct distance does not check land, depth, weather or a navigable
+            route. Fuel excludes the return trip, reserve and idling.
+          </Text>
           <View style={styles.buttonRow}>
-            <TouchableOpacity onPress={onClose}>
+            <TouchableOpacity
+              onPress={onClose}
+              accessibilityRole="button"
+              accessibilityLabel="Close estimate"
+            >
               <View style={styles.okBtn}>
                 <Text style={styles.okBtnText}>OKAY</Text>
               </View>
@@ -33,9 +85,7 @@ const FuelEstimateModal = ({ visible, onClose, distance, fuelRate }:any) => {
       </View>
     </Modal>
   );
-};
-
-export default FuelEstimateModal;
+}
 
 const styles = StyleSheet.create({
   overlay: {
@@ -55,6 +105,13 @@ const styles = StyleSheet.create({
   distanceText: {
     fontSize: 16,
     marginBottom: 15,
+  },
+  rateInput: {
+    borderWidth: 1,
+    borderColor: '#777',
+    padding: 12,
+    marginVertical: 12,
+    width: '100%',
   },
   fuelRow: {
     flexDirection: 'row',

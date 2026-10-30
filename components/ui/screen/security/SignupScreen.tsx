@@ -1,298 +1,96 @@
-import { COLORS } from '@/constants/ColorPallet';
-import React, { useState } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, ScrollView, Alert } from 'react-native';
-import { TextInput } from 'react-native-paper';
+import { useState } from 'react';
+import { StyleSheet, Text, View } from 'react-native';
+import ActionButton from '@/components/ui/ActionButton';
+import StatusBanner from '@/components/ui/StatusBanner';
+import AuthField from '@/components/ui/screen/security/AuthField';
+import AuthLayout from '@/components/ui/screen/security/AuthLayout';
+import { theme } from '@/constants/theme';
 import api from '@/utils/api';
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useDispatch } from 'react-redux';
-import { setUserId } from '@/store/authSlice';
-import { validateName, validateEmail, validatePassword, validateConfirmPassword, validatePhone, validateBoatId, validateFields } from '@/utils/validation';
+import { validateBoatId, validateConfirmPassword, validateEmail, validateFields, validateName, validatePassword, validatePhone } from '@/utils/validation';
+
+type FieldName = 'firstName' | 'lastName' | 'email' | 'contact' | 'password' | 'confirmPassword' | 'boatId';
+const emptyErrors: Record<FieldName, string> = {
+  firstName: '', lastName: '', email: '', contact: '', password: '', confirmPassword: '', boatId: '',
+};
 
 export default function SignupScreen({ navigation }: any) {
-    const [firstName, setFirstName] = useState('');
-    const [lastName, setLastName] = useState('');
-    const [email, setEmail] = useState('');
-    const [contact, setContact] = useState('');
-    const [password, setPassword] = useState('');
-    const [confirmPassword, setConfirmPassword] = useState('');
-    const [boatId, setBoatId] = useState('');
-    const [loading, setLoading] = useState(false);
-    const [errors, setErrors] = useState({
-        firstName: '',
-        lastName: '',
-        email: '',
-        contact: '',
-        password: '',
-        confirmPassword: '',
-        boatId: ''
-    });
-    
-    const dispatch = useDispatch();
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [email, setEmail] = useState('');
+  const [contact, setContact] = useState('');
+  const [password, setPassword] = useState('');
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [boatId, setBoatId] = useState('');
+  const [loading, setLoading] = useState(false);
+  const [requestError, setRequestError] = useState('');
+  const [errors, setErrors] = useState(emptyErrors);
 
-    const validateInputs = () => {
-        const firstNameValidation = validateName(firstName, 'First Name');
-        const lastNameValidation = validateName(lastName, 'Last Name');
-        const emailValidation = validateEmail(email);
-        const passwordValidation = validatePassword(password);
-        const confirmPasswordValidation = validateConfirmPassword(password, confirmPassword);
-        const phoneValidation = validatePhone(contact);
-        const boatIdValidation = validateBoatId(boatId);
+  const clearError = (field: FieldName) => setErrors((previous) => ({ ...previous, [field]: '' }));
 
-        setErrors({
-            firstName: firstNameValidation.error,
-            lastName: lastNameValidation.error,
-            email: emailValidation.error,
-            contact: phoneValidation.error,
-            password: passwordValidation.error,
-            confirmPassword: confirmPasswordValidation.error,
-            boatId: boatIdValidation.error
-        });
+  const validateInputs = () => {
+    const first = validateName(firstName.trim(), 'First name');
+    const last = validateName(lastName.trim(), 'Last name');
+    const mail = validateEmail(email.trim());
+    const phone = validatePhone(contact.trim());
+    const boat = validateBoatId(boatId.trim());
+    const pass = validatePassword(password);
+    const confirmation = validateConfirmPassword(password, confirmPassword);
+    setErrors({ firstName: first.error, lastName: last.error, email: mail.error, contact: phone.error, boatId: boat.error, password: pass.error, confirmPassword: confirmation.error });
+    return validateFields([first, last, mail, phone, boat, pass, confirmation]).isValid;
+  };
 
-        return validateFields([
-            firstNameValidation,
-            lastNameValidation,
-            emailValidation,
-            passwordValidation,
-            confirmPasswordValidation,
-            phoneValidation,
-            boatIdValidation
-        ]).isValid;
-    };
+  const handleRegister = async () => {
+    if (loading || !validateInputs()) return;
+    setRequestError('');
+    try {
+      setLoading(true);
+      const response = await api.post('users/register', {
+        firstName: firstName.trim(), lastName: lastName.trim(), email: email.trim(),
+        contact: contact.trim(), password, boatId: boatId.trim(),
+      });
+      const { data } = response.data;
+      if (!data?.user) throw new Error('Invalid response from server');
+      navigation.navigate('VerifyOtp', { username: data.user.username, email: data.user.email });
+    } catch (error: any) {
+      setRequestError(error.response?.data?.message || 'Account creation failed. Please try again.');
+    } finally {
+      setLoading(false);
+    }
+  };
 
-    const handleRegister = async () => {
-        if (!validateInputs()) return;
-        
-        try {
-            setLoading(true);
-            
-            const response = await api.post('users/register', {
-                firstName,
-                lastName,
-                email,
-                contact,
-                password,
-                boatId,
-            });
-            
-            const { data } = response.data;
-            
-            if (data && data.user && data.token) {
-                await AsyncStorage.setItem('tempToken', data.token);
-                
-                navigation.navigate('VerifyOtp', { 
-                    username: data.user.username,
-                    email: data.user.email
-                });
-            } else {
-                throw new Error('Invalid response from server');
-            }
-        } catch (error: any) {
-            const errorMessage = error.response?.data?.message || 'Registration failed. Please try again.';
-            Alert.alert('Registration Error', errorMessage);
-            console.error('Registration error:', error);
-        } finally {
-            setLoading(false);
-        }
-    };
-
-    const clearError = (field: string) => {
-        setErrors(prev => ({ ...prev, [field]: '' }));
-    };
-
-    return (
-        <View style={styles.container}>
-            <View style={styles.headerPanel}>
-                <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#fff' }}>Signup</Text>
-            </View>
-            <ScrollView contentContainerStyle={styles.scrollContent}>
-                <View style={styles.formcontainer}>
-                    <Text style={styles.label}>First Name</Text>
-                    <TextInput
-                        mode="flat"
-                        value={firstName}
-                        onChangeText={(text) => {
-                            setFirstName(text);
-                            clearError('firstName');
-                        }}
-                        placeholder="Enter First Name"
-                        style={[styles.input, errors.firstName ? styles.inputError : null]}
-                    />
-                    {errors.firstName ? <Text style={styles.errorText}>{errors.firstName}</Text> : null}
-
-                    <Text style={styles.label}>Last Name</Text>
-                    <TextInput
-                        mode="flat"
-                        value={lastName}
-                        onChangeText={(text) => {
-                            setLastName(text);
-                            clearError('lastName');
-                        }}
-                        placeholder="Enter Last Name"
-                        style={[styles.input, errors.lastName ? styles.inputError : null]}
-                    />
-                    {errors.lastName ? <Text style={styles.errorText}>{errors.lastName}</Text> : null}
-
-                    <Text style={styles.label}>Email</Text>
-                    <TextInput
-                        mode="flat"
-                        value={email}
-                        onChangeText={(text) => {
-                            setEmail(text);
-                            clearError('email');
-                        }}
-                        placeholder="Enter Email"
-                        style={[styles.input, errors.email ? styles.inputError : null]}
-                        keyboardType="email-address"
-                        autoCapitalize="none"
-                    />
-                    {errors.email ? <Text style={styles.errorText}>{errors.email}</Text> : null}
-
-                    <Text style={styles.label}>Boat ID (Optional)</Text>
-                    <TextInput
-                        mode="flat"
-                        value={boatId}
-                        onChangeText={(text) => {
-                            setBoatId(text);
-                            clearError('boatId');
-                        }}
-                        placeholder="Enter Boat ID (e.g., B002)"
-                        style={[styles.input, errors.boatId ? styles.inputError : null]}
-                    />
-                    {errors.boatId ? <Text style={styles.errorText}>{errors.boatId}</Text> : null}
-
-                    <Text style={styles.label}>Contact (Optional)</Text>
-                    <TextInput
-                        mode="flat"
-                        value={contact}
-                        onChangeText={(text) => {
-                            setContact(text);
-                            clearError('contact');
-                        }}
-                        placeholder="+94 77 123 4567"
-                        style={[styles.input, errors.contact ? styles.inputError : null]}
-                        keyboardType="phone-pad"
-                    />
-                    {errors.contact ? <Text style={styles.errorText}>{errors.contact}</Text> : null}
-
-                    <Text style={styles.label}>Password</Text>
-                    <TextInput
-                        mode="flat"
-                        value={password}
-                        onChangeText={(text) => {
-                            setPassword(text);
-                            clearError('password');
-                        }}
-                        placeholder="Enter your password"
-                        style={[styles.input, errors.password ? styles.inputError : null]}
-                        secureTextEntry={true}
-                    />
-                    {errors.password ? <Text style={styles.errorText}>{errors.password}</Text> : null}
-
-                    <Text style={styles.label}>Confirm Password</Text>
-                    <TextInput
-                        mode="flat"
-                        value={confirmPassword}
-                        onChangeText={(text) => {
-                            setConfirmPassword(text);
-                            clearError('confirmPassword');
-                        }}
-                        placeholder="Re-enter your password"
-                        style={[styles.input, errors.confirmPassword ? styles.inputError : null]}
-                        secureTextEntry={true}
-                    />
-                    {errors.confirmPassword ? <Text style={styles.errorText}>{errors.confirmPassword}</Text> : null}
-
-                    <TouchableOpacity 
-                        style={[styles.signInButton, loading && styles.disabledButton]} 
-                        onPress={handleRegister}
-                        disabled={loading}
-                    >
-                        <Text style={styles.buttonText}>
-                            {loading ? 'Signing up...' : 'Sign Up'}
-                        </Text>
-                    </TouchableOpacity>
-
-                    <View style={styles.loginLinkContainer}>
-                        <Text style={styles.loginText}>
-                            Already have an account?
-                            <TouchableOpacity onPress={() => navigation.navigate('Login')}>
-                                <Text style={styles.loginLink}> Sign in</Text>
-                            </TouchableOpacity>
-                        </Text>
-                    </View>
-                </View>
-            </ScrollView>
-        </View>
-    );
+  return (
+    <AuthLayout eyebrow="Join OceanPulse" title="Create your account" description="Set up your account to access routes, conditions, and messages.">
+      <Text style={styles.sectionTitle}>Your details</Text>
+      <Text style={styles.sectionDescription}>We’ll email a verification code after you create your account.</Text>
+      {!!requestError && <StatusBanner tone="error" title="Could not create account" message={requestError} style={styles.banner} />}
+      <View style={styles.fields}>
+        <AuthField label="First name" value={firstName} onChangeText={(value) => { setFirstName(value); clearError('firstName'); }} error={errors.firstName} placeholder="First name" autoComplete="given-name" textContentType="givenName" />
+        <AuthField label="Last name" value={lastName} onChangeText={(value) => { setLastName(value); clearError('lastName'); }} error={errors.lastName} placeholder="Last name" autoComplete="family-name" textContentType="familyName" />
+        <AuthField label="Email address" value={email} onChangeText={(value) => { setEmail(value); clearError('email'); }} error={errors.email} placeholder="you@example.com" keyboardType="email-address" autoCapitalize="none" autoComplete="email" textContentType="emailAddress" />
+        <AuthField label="Boat ID" optional value={boatId} onChangeText={(value) => { setBoatId(value.toUpperCase()); clearError('boatId'); }} error={errors.boatId} placeholder="B001" autoCapitalize="characters" accessibilityHint="Optional. Format: one letter followed by three numbers." />
+        <AuthField label="Contact number" value={contact} onChangeText={(value) => { setContact(value); clearError('contact'); }} error={errors.contact} placeholder="+94771234567" keyboardType="phone-pad" autoComplete="tel" textContentType="telephoneNumber" />
+        <View style={styles.divider} />
+        <Text style={styles.subheading}>Secure your account</Text>
+        <Text style={styles.passwordHint}>Use at least 8 characters with a letter and a number.</Text>
+        <AuthField label="Password" value={password} onChangeText={(value) => { setPassword(value); clearError('password'); }} error={errors.password} placeholder="Create a password" secureTextEntry autoComplete="new-password" textContentType="newPassword" />
+        <AuthField label="Confirm password" value={confirmPassword} onChangeText={(value) => { setConfirmPassword(value); clearError('confirmPassword'); }} error={errors.confirmPassword} placeholder="Enter password again" secureTextEntry autoComplete="new-password" textContentType="newPassword" />
+      </View>
+      <ActionButton label="Create account" onPress={handleRegister} loading={loading} />
+      <View style={styles.divider} />
+      <Text style={styles.switchPrompt}>Already have an account?</Text>
+      <ActionButton label="Sign in" variant="secondary" onPress={() => navigation.navigate('Login')} style={styles.switchButton} />
+    </AuthLayout>
+  );
 }
 
 const styles = StyleSheet.create({
-    container: {
-        flex: 1,
-        backgroundColor: '#fff',
-    },
-    headerPanel: {
-        width: '100%',
-        height: 100,
-        backgroundColor: '#0456C7',
-        paddingTop: 50,
-        alignItems: 'center',
-    },
-    scrollContent: {
-        paddingBottom: 20,
-    },
-    formcontainer: {
-        padding: 20,
-        width: '95%',
-        alignSelf: 'center',
-        marginTop: 20,
-    },
-    input: {
-        backgroundColor: '',
-        marginBottom: 20,
-    },
-    inputError: {
-        borderColor: COLORS.primary,
-        borderWidth: 1,
-    },
-    errorText: {
-        color: COLORS.primary,
-        fontSize: 12,
-        marginTop: -15,
-        marginBottom: 15,
-    },
-    signInButton: {
-        backgroundColor: "#0456C7",
-        padding: 15,
-        borderRadius: 10,
-        alignItems: "center",
-        marginTop: 20,
-    },
-    disabledButton: {
-        opacity: 0.7,
-    },
-    buttonText: {
-        color: "#fff",
-        fontSize: 18,
-        fontWeight: "bold",
-    },
-    label: {
-        fontSize: 20,
-        fontWeight: "bold",
-        color: "#1D3557",
-    },
-    loginLinkContainer: {
-        marginTop: 20,
-        alignItems: 'center',
-    },
-    loginText: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: COLORS.gray,
-    },
-    loginLink: {
-        fontSize: 14,
-        fontWeight: "bold",
-        color: "#0456C7",
-    },
+  sectionTitle: { color: theme.colors.text, fontSize: 22, fontWeight: '800' },
+  sectionDescription: { color: theme.colors.mutedText, fontSize: theme.type.caption, marginTop: theme.spacing.xs },
+  banner: { marginTop: theme.spacing.md },
+  fields: { marginTop: theme.spacing.lg },
+  divider: { height: 1, backgroundColor: theme.colors.border, marginVertical: theme.spacing.lg },
+  subheading: { color: theme.colors.text, fontSize: 18, fontWeight: '700', marginBottom: theme.spacing.xs },
+  passwordHint: { color: theme.colors.mutedText, fontSize: theme.type.caption, marginBottom: theme.spacing.lg },
+  switchPrompt: { color: theme.colors.mutedText, fontSize: theme.type.caption, textAlign: 'center' },
+  switchButton: { marginTop: theme.spacing.sm },
 });

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React from 'react';
 import {
   View,
   Text,
@@ -7,50 +7,17 @@ import {
   TouchableOpacity,
   ActivityIndicator,
 } from 'react-native';
-import { useSelector } from 'react-redux';
-import axios from 'axios';
-import { RootState } from '@/store';
-import getBaseUrl from '@/constants/BASEURL';
 import { COLORS } from '@/constants/ColorPallet';
-import axiosInstance from '@/utils/api';
-
-type User = {
-  userId: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-};
+import type { DirectoryUser as User } from '@/utils/contracts';
+import usePagedList from '@/utils/usePagedList';
+import useUnreadCounts from '@/utils/useUnreadCounts';
+import useMessagingActive from '@/utils/useMessagingActive';
 
 export default function UserListScreen({ navigation }: any) {
-  const [users, setUsers] = useState<User[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
-  const currentUserId = useSelector((state: RootState) => state.auth.userId);
-
-  useEffect(() => {
-    fetchUsers();
-  }, []);
-
-  const fetchUsers = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      const response = await axiosInstance.get<{ success: boolean; data: User[] }>( 
-        `${getBaseUrl()}users/users`
-      );
-   
-      const otherUsers = response.data.data.filter((user: User) => user.userId !== currentUserId);
-      setUsers(otherUsers);
-    } catch (err) {
-      console.error('Error fetching users:', err);
-      setError('Failed to load users');
-    } finally {
-      setLoading(false);
-    }
-  };
+  const { items: users, loading, loadingMore, error, refresh, loadMore, hasMore } = usePagedList<User>('users/users', 'userId');
+  const unread = useUnreadCounts(users.map(user => user.userId), useMessagingActive());
 
   const handleUserSelect = (user: User) => {
-    console.log('Selected user object:', user);
   
     navigation.navigate('ChatScreen', {
       otherUserId: user.userId,
@@ -73,12 +40,13 @@ export default function UserListScreen({ navigation }: any) {
       </View>
       <View style={styles.userInfo}>
         <Text style={styles.userName}>{`${item.firstName} ${item.lastName}`}</Text>
-        <Text style={styles.userEmail}>{item.email}</Text>
+        <Text style={styles.userEmail}>{item.username}</Text>
+        {unread.counts[item.userId] > 0 && <Text>{unread.counts[item.userId]} unread</Text>}
       </View>
     </TouchableOpacity>
   );
 
-  if (loading) {
+  if (loading && users.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <ActivityIndicator size="large" color={COLORS.primary} />
@@ -86,11 +54,11 @@ export default function UserListScreen({ navigation }: any) {
     );
   }
 
-  if (error) {
+  if (error && users.length === 0) {
     return (
       <View style={styles.centerContainer}>
         <Text style={styles.errorText}>{error}</Text>
-        <TouchableOpacity style={styles.retryButton} onPress={fetchUsers}>
+        <TouchableOpacity style={styles.retryButton} onPress={refresh}>
           <Text style={styles.retryText}>Retry</Text>
         </TouchableOpacity>
       </View>
@@ -104,6 +72,15 @@ export default function UserListScreen({ navigation }: any) {
         renderItem={renderUser}
         keyExtractor={(item) => item.userId}
         contentContainerStyle={styles.listContent}
+        refreshing={loading}
+        onRefresh={refresh}
+        ListFooterComponent={<View>
+          {unread.error && <Text style={styles.errorText}>{unread.error}</Text>}
+          {error && <Text style={styles.errorText}>{error}</Text>}
+          {hasMore && <TouchableOpacity onPress={loadMore} disabled={loadingMore} accessibilityRole="button">
+            <Text>{loadingMore ? 'Loading...' : 'Load more users'}</Text>
+          </TouchableOpacity>}
+        </View>}
         ListEmptyComponent={
           <Text style={styles.emptyText}>No other users found</Text>
         }

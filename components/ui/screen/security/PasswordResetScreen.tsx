@@ -2,12 +2,11 @@ import { useState, useRef, useEffect } from "react";
 import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator } from "react-native";
 import { COLORS } from "@/constants/ColorPallet";
 import api from "@/utils/api";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Icon } from "react-native-paper";
 
 export default function ForgotPasswordOtpScreen({ navigation, route }: any) {
-    const { email, token } = route.params;
-    const [otp, setOtp] = useState(["", "", "", "", ""]);
+    const { email } = route.params;
+    const [otp, setOtp] = useState(["", "", "", "", "", ""]);
     const [loading, setLoading] = useState(false);
     const [resendLoading, setResendLoading] = useState(false);
     const [countdown, setCountdown] = useState(60);
@@ -47,15 +46,14 @@ export default function ForgotPasswordOtpScreen({ navigation, route }: any) {
             setLoading(true);
             const otpString = otp.join('');
 
-            if (otpString.length !== 5 || !/^\d{5}$/.test(otpString)) {
-                Alert.alert('Error', 'Please enter a valid 5-digit OTP');
+            if (otpString.length !== 6 || !/^\d{6}$/.test(otpString)) {
+                Alert.alert('Error', 'Please enter a valid 6-digit code');
                 return;
             }
 
-            const response = await api.post('users/verify-reset-otp', { email, otp: otpString, token });
+            const response = await api.post('users/verify-reset-otp', { email, otp: otpString });
 
             if (response.data.success) {
-                await AsyncStorage.setItem('resetToken', response.data.data.resetToken);
                 Alert.alert('Success', 'OTP verified successfully', [
                     {
                         text: 'OK',
@@ -82,7 +80,7 @@ export default function ForgotPasswordOtpScreen({ navigation, route }: any) {
             const response = await api.post('users/forgot-password', { email });
 
             if (response.data.success) {
-                setOtp(["", "", "", "", ""]);
+                setOtp(["", "", "", "", "", ""]);
                 setCountdown(60);
                 setCanResend(false);
                 Alert.alert('Success', 'New OTP has been sent to your email');
@@ -196,11 +194,11 @@ const styles = StyleSheet.create({
     otpContainer: {
         flexDirection: "row",
         justifyContent: "space-between",
-        width: "80%",
+        width: "90%",
         marginBottom: 20,
     },
     otpInput: {
-        width: 50,
+        width: 42,
         height: 50,
         borderWidth: 1,
         borderColor: "#ccc",
